@@ -1,13 +1,29 @@
 defmodule TAlib.MixProject do
   use Mix.Project
 
+  @app_name :talib
+  @version "0.1.0"
+  @elixir_version "~> 1.8"
+  @github "https://github.com/benyblack/talib"
+
   def project do
     [
-      app: :talib,
-      version: "0.1.0",
-      elixir: "~> 1.8",
+      app: @app_name,
+      name: "TAlib",
+      version: @version,
+      elixir: @elixir_version,
+      package: package(),
       start_permanent: Mix.env() == :prod,
       deps: deps()
+    ]
+  end
+
+  def package do
+    [
+      name: @app_name,
+      licenses: ["MIT"],
+      maintainers: ["Behnam Shomali"],
+      links: %{Github: @github}
     ]
   end
 
@@ -21,8 +37,6 @@ defmodule TAlib.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
     ]
   end
 end
