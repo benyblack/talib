@@ -3,6 +3,8 @@ defmodule TAlib.Tests.RsiTests do
   alias TAlib.Indicators.RSI
 
   @prices [
+    44.3289,
+    44.3189,
     44.3389,
     44.0902,
     44.1497,
