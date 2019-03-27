@@ -24,6 +24,8 @@ defmodule TAlib.Tests.RsiTests do
   test "calculate RSI" do
     # there should be somthing like AssertAlmostEqual in Python
     assert Float.round(RSI.calculateRSI(@prices), 2) == 70.53
+    assert Float.round(RSI.calculateRSI(@prices, 7), 2) == 70.67
+    assert RSI.calculateRSI(@prices, 28) == 0
   end
 
   test "average gain" do
@@ -31,6 +33,7 @@ defmodule TAlib.Tests.RsiTests do
     assert RSI.averageGain([3, 2, 1]) == 0
     assert RSI.averageGain([]) == 0
     assert Float.round(RSI.averageGain(@prices), 4) == 0.2384
+    assert RSI.averageGain([1, 2, 3, 4], 2) == 0.5
   end
 
   test "average loss" do
@@ -38,5 +41,6 @@ defmodule TAlib.Tests.RsiTests do
     assert RSI.averageLoss([1, 2, 3]) == 0
     assert RSI.averageLoss([]) == 0
     assert Float.round(RSI.averageLoss(@prices), 4) == 0.0996
+    assert RSI.averageLoss([4, 3, 2, 1], 2) == 0.5
   end
 end
