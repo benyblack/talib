@@ -21,6 +21,7 @@ defmodule TAlib.MixProject do
   def package do
     [
       name: @app_name,
+      description: "Technical analysis library",
       licenses: ["MIT"],
       maintainers: ["Behnam Shomali"],
       links: %{Github: @github}
