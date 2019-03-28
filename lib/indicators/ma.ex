@@ -9,7 +9,7 @@ defmodule TAlib.Indicators.MA do
   def sma(prices, period) when is_list(prices) and length(prices) <= period, do: 0
 
   def sma(prices, period) when is_list(prices) do
-    slice_index = price_historyslice_index(length(prices), period)
+    slice_index = price_history_slice_index(length(prices), period)
     price_history = Enum.slice(prices, slice_index - 1, period)
     Enum.sum(price_history) / length(price_history)
   end
@@ -18,7 +18,7 @@ defmodule TAlib.Indicators.MA do
   def cma(_, 0), do: 0
   def cma(prices, period) when is_list(prices) and length(prices) <= period, do: 0
   def cma(prices, period) when is_list(prices) do
-    slice_index = price_historyslice_index(length(prices), period)
+    slice_index = price_history_slice_index(length(prices), period)
     price_history = Enum.slice(prices, slice_index, period)
     Enum.sum(price_history) / length(price_history)
   end
@@ -27,7 +27,7 @@ defmodule TAlib.Indicators.MA do
   def wma(_, 0), do: 0
   def wma(prices, period) when is_list(prices) and length(prices) <= period, do: 0
   def wma(prices, period) when is_list(prices) do
-    slice_index = price_historyslice_index(length(prices), period)
+    slice_index = price_history_slice_index(length(prices), period)
     price_history = Enum.slice(prices, slice_index, period)
 
     weighted_total =
@@ -37,6 +37,6 @@ defmodule TAlib.Indicators.MA do
     weighted_total / (period * (period + 1) / 2)
   end
 
-  defp price_historyslice_index(priceCount, period) when priceCount <= period, do: 0
-  defp price_historyslice_index(priceCount, period), do: priceCount - period
+  defp price_history_slice_index(priceCount, period) when priceCount <= period, do: 0
+  defp price_history_slice_index(priceCount, period), do: priceCount - period
 end
