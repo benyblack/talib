@@ -22,7 +22,6 @@ defmodule TAlib.Tests.MaTests do
   ]
 
   test "calculate MA" do
-    # there should be somthing like AssertAlmostEqual in Python
     assert MA.sma(@prices, 50) == 0
     assert MA.sma(@prices) == 0 #default period is 50
     assert Float.round(MA.sma(@prices, 10), 4) == 45.2752
@@ -30,7 +29,6 @@ defmodule TAlib.Tests.MaTests do
   end
 
   test "calculate CMA" do
-    # there should be somthing like AssertAlmostEqual in Python
     assert MA.cma(@prices, 50) == 0
     assert MA.cma(@prices) == 0 #default period is 50
     assert Float.round(MA.cma(@prices, 10), 4) == 45.5422
