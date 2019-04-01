@@ -12,7 +12,7 @@ defmodule TAlib.Tests.StochasticTests do
 
   test "calculate Stochastic %D" do
     assert Stochastic.stochastic_d(@prices, 1000) == 0
-    assert Float.round(Stochastic.stochastic_d(@prices), 2) == 95.16
+    assert Float.round(Stochastic.stochastic_d(@prices), 2) == 98.32
   end
 
 end
