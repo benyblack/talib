@@ -54,7 +54,6 @@ defmodule TAlib.Indicators.Stochastic do
     k_list =  Enum.map(counter, fn(x) ->
       stochastic_k(Enum.slice(prices, x, k_period))
     end)
-    IO.inspect(k_list)
     MA.sma(k_list, 3)
   end
 
