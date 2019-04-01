@@ -1,6 +1,6 @@
 defmodule TAlib.Indicators.RSI do
   @moduledoc """
-  RSI indicator https://en.wikipedia.org/wiki/Relative_strength_index
+  RSI indicator [Wikipedia](https://en.wikipedia.org/wiki/Relative_strength_index)
   Calculate RSI based on price history
   """
 

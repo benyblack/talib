@@ -2,7 +2,7 @@ defmodule TAlib.Indicators.MACD do
   alias TAlib.Indicators.MA
 
   @moduledoc """
-  MACD indicator [https://en.wikipedia.org/wiki/MACD]
+  MACD indicator [Wikipedia](https://en.wikipedia.org/wiki/MACD)
   Calculate MACD, Signal line, and Histogram
   """
 
