@@ -27,7 +27,7 @@ defmodule TAlib.Tests.MaTests do
     assert MA.sma(@prices, 50) == 0
     assert MA.sma(@prices) == 0 #default period is 50
     assert Float.round(MA.sma(@prices, 10), 4) == 44.6028
-    assert Float.round(MA.sma([1304.70,1297.00,1289.80,1277.90,1281.90], 5), 2) == 1286.65
+    assert Float.round(MA.sma([1304.70,1297.00,1289.80,1277.90,1281.90], 4), 2) == 1286.65
   end
 
   test "calculate CMA" do
@@ -48,8 +48,6 @@ defmodule TAlib.Tests.MaTests do
     assert MA.ema(@prices, 50) == 0
     assert Float.round(MA.ema(@prices2, 5), 2) == 1328.45
     assert Float.round(MA.ema(@prices2, 13), 2) == 1306.72
-    assert Float.round(MA.ema([1281.90,1277.90,1289.80,1297.00,1304.70], 5), 2) == 1292.35
-    assert Float.round(MA.ema([1274.95,1281.90,1277.90,1289.80,1297.00,1304.70], 5), 2) == 1286.55
 
   end
 end

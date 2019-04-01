@@ -50,7 +50,7 @@ defmodule TAlib.Indicators.Stochastic do
   def stochastic_d(prices, period \\ 3, k_period \\ 14)
   def stochastic_d(prices, period, k_period) when is_list(prices) and length(prices) < period, do: 0
   def stochastic_d(prices, period, k_period) when is_list(prices) do
-    counter = 0..period-1
+    counter = 0..period
     k_list =  Enum.map(counter, fn(x) ->
       stochastic_k(Enum.slice(prices, x, k_period))
     end)

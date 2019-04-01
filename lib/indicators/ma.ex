@@ -22,7 +22,7 @@ defmodule TAlib.Indicators.MA do
   def sma(prices, period) when is_list(prices) and length(prices) < period, do: 0
   def sma(prices, period) when is_list(prices) do
     price_history = Enum.slice(prices, 1, period)
-    Enum.sum(price_history) / length(price_history)
+    Enum.sum(price_history) / period
   end
 
   @doc """
@@ -43,7 +43,7 @@ defmodule TAlib.Indicators.MA do
   def cma(prices, period) when is_list(prices) and length(prices) <= period, do: 0
   def cma(prices, period) when is_list(prices) do
     price_history = Enum.slice(prices, 0, period)
-    Enum.sum(price_history) / length(price_history)
+    Enum.sum(price_history) / period
   end
 
   @doc """
