@@ -1,6 +1,6 @@
 defmodule TAlib.Indicators.MA do
   @moduledoc """
-  Moving Average indicator https://en.wikipedia.org/wiki/Moving_average
+  Moving Average indicator [Wikipedia](https://en.wikipedia.org/wiki/Moving_average)
   Calculate SMA, WMA, and EMA
   """
 
@@ -12,16 +12,17 @@ defmodule TAlib.Indicators.MA do
     - period: MA period to be calculated. It must be equal or less than size of prices
 
   ## Example
-    iex(29)> TAlib.Indicators.MA.sma([1,2,3],3)
+  ```
+    iex> TAlib.Indicators.MA.sma([1,2,3],3)
     2.0
+  ```
   """
   def sma(prices, period \\ 50)
   def sma(_, 0), do: 0
   def sma(prices, period) when is_list(prices) and length(prices) < period, do: 0
   def sma(prices, period) when is_list(prices) do
-    slice_index = price_history_slice_index(length(prices), period)
-    price_history = Enum.slice(prices, slice_index, period)
-    Enum.sum(price_history) / length(price_history)
+    price_history = Enum.slice(prices, 1, period)
+    Enum.sum(price_history) / period
   end
 
   @doc """
@@ -32,16 +33,17 @@ defmodule TAlib.Indicators.MA do
     - period: MA period to be calculated. It must be less than size of prices
 
   ## Example
-    iex(30)> TAlib.Indicators.MA.cma([0,1,2,3],3)
+  ```
+    iex> TAlib.Indicators.MA.cma([0,1,2,3],3)
     2.0
+  ```
   """
   def cma(prices, period \\ 50)
   def cma(_, 0), do: 0
   def cma(prices, period) when is_list(prices) and length(prices) <= period, do: 0
   def cma(prices, period) when is_list(prices) do
-    slice_index = price_history_slice_index(length(prices), period)
-    price_history = Enum.slice(prices, slice_index, period)
-    Enum.sum(price_history) / length(price_history)
+    price_history = Enum.slice(prices, 0, period)
+    Enum.sum(price_history) / period
   end
 
   @doc """
@@ -52,15 +54,16 @@ defmodule TAlib.Indicators.MA do
     - period: MA period to be calculated. It must be equal or less than size of prices
 
   ## Example
-    iex(30)> TAlib.Indicators.MA.wma([0,1,2,3],3)
+  ```
+    iex> TAlib.Indicators.MA.wma([0,1,2,3],3)
     2.3333333333333335
+  ```
   """
   def wma(prices, period \\ 50)
   def wma(_, 0), do: 0
   def wma(prices, period) when is_list(prices) and length(prices) < period, do: 0
   def wma(prices, period) when is_list(prices) do
-    slice_index = price_history_slice_index(length(prices), period)
-    price_history = Enum.slice(prices, slice_index, period)
+    price_history = Enum.slice(prices, 0, period)
     weighted_total =
       Enum.with_index(price_history)
       |> Enum.reduce(0, fn {val, idx}, acc -> acc + val * (idx + 1) end)
@@ -75,8 +78,10 @@ defmodule TAlib.Indicators.MA do
     - period: MA period to be calculated. It must be equal or less than size of prices
 
   ## Example
-    iex(34)> TAlib.Indicators.MA.ema([0,1,2,3],3)
+  ```
+    iex> TAlib.Indicators.MA.ema([0,1,2,3],3)
     1.0
+  ```
   """
   def ema(prices, period \\ 50)
   def ema(_, 0), do: 0
@@ -88,6 +93,4 @@ defmodule TAlib.Indicators.MA do
     last_ema + (multiplier * (hd(prices)- last_ema))
   end
 
-  defp price_history_slice_index(priceCount, period) when priceCount <= period, do: 0
-  defp price_history_slice_index(priceCount, period), do: priceCount - period
 end
