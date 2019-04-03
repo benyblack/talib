@@ -2,7 +2,7 @@ defmodule TAlib.MixProject do
   use Mix.Project
 
   @app_name :talib
-  @version "0.3.0"
+  @version "0.3.2"
   @elixir_version "~> 1.8"
   @github "https://github.com/benyblack/talib"
 
