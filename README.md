@@ -6,7 +6,8 @@ Technical analysis library.
 - [x] Moving Average (SMA, EMA, CMA, and WMA)
 - [x] RSI
 - [x] MACD
-- [ ] Stochastic oscillator
+- [x] Stochastic oscillator
+- [ ] ...
 
 (The list to be completed)]
 
@@ -20,7 +21,7 @@ by adding `talib` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:talib, "~> 0.3.0"}
+    {:talib, "~> 0.3.3"}
   ]
 end
 ```
