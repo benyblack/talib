@@ -25,7 +25,8 @@ defmodule TAlib.Indicators.MA do
     Enum.sum(price_history) / period
   end
 
-    @doc """
+
+  @doc """
   Update Simple Moving Average when new price comes
 
   ## Parameters
@@ -66,6 +67,24 @@ defmodule TAlib.Indicators.MA do
   def cma(prices, period) when is_list(prices) do
     price_history = Enum.slice(prices, 0, period)
     Enum.sum(price_history) / period
+  end
+
+  @doc """
+  Update Cumulative Moving Average when new price comes
+
+  ## Parameters
+    - current_cma: Previously calculated CMA
+    - new_value: New price to be added in the list
+    - period: MA period to be calculated.
+
+  ## Example
+  ```
+    iex> TAlib.Indicators.MA.update_cma(44.4513,44, 4)
+    44.36104
+  ```
+  """
+  def update_cma(current_cma, new_value, period) do
+    current_cma + ((new_value-current_cma)/(period + 1))
   end
 
   @doc """

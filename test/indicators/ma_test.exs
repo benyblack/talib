@@ -37,6 +37,8 @@ defmodule TAlib.Tests.MaTests do
     assert MA.cma(@prices) == 0 #default period is 50
     assert Float.round(MA.cma(@prices, 10), 4) == 44.4513
 
+    assert MA.update_cma(44.4513,44, 4) == 44.36104
+
   end
 
   test "calculate WMA" do
