@@ -42,7 +42,7 @@ defmodule TAlib.Indicators.MA do
   ```
   """
   def update_sma(prices, current_sma, new_value, period\\50)
-  def update_sma(prices, current_sma, new_value, period) when is_list(prices) and length(prices)< period+2, do: 0
+  def update_sma(prices, _current_sma, _new_value, period) when is_list(prices) and length(prices)< period+2, do: 0
   def update_sma(prices, current_sma, new_value, period) when is_list(prices) do
     value_to_remove = Enum.at(prices, period + 1)
     current_sma + new_value/period - value_to_remove/period
@@ -134,4 +134,22 @@ defmodule TAlib.Indicators.MA do
     last_ema + (multiplier * (hd(prices)- last_ema))
   end
 
+  @doc """
+  Update Exponential Moving Average when new price comes
+
+  ## Parameters
+    - current_ema: Previously calculated EMA
+    - new_value: New price to be added in the list
+    - period: MA period to be calculated.
+
+  ## Example
+  ```
+    iex> TAlib.Indicators.MA.update_ema(1306.72, 1300, 50), 4)
+    1306.456471
+  ```
+  """
+  def update_ema(current_ema, new_value, period) do
+    multiplier = 2/(period+1)
+    current_ema + (multiplier * (new_value - current_ema))
+  end
 end

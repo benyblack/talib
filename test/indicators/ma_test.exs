@@ -53,5 +53,6 @@ defmodule TAlib.Tests.MaTests do
     assert Float.round(MA.ema(@prices2, 5), 2) == 1328.45
     assert Float.round(MA.ema(@prices2, 13), 2) == 1306.72
 
+    assert Float.round(MA.update_ema(1306.72, 1300, 50), 4) == 1306.4565
   end
 end
