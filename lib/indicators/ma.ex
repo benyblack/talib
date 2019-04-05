@@ -13,8 +13,8 @@ defmodule TAlib.Indicators.MA do
 
   ## Example
   ```
-    iex> TAlib.Indicators.MA.sma([1,2,3],3)
-    2.0
+    iex> TAlib.Indicators.MA.sma([1,2,3,4],3)
+    3.0
   ```
   """
   def sma(prices, period \\ 50)
@@ -23,6 +23,29 @@ defmodule TAlib.Indicators.MA do
   def sma(prices, period) when is_list(prices) do
     price_history = Enum.slice(prices, 1, period)
     Enum.sum(price_history) / period
+  end
+
+
+  @doc """
+  Update Simple Moving Average when new price comes
+
+  ## Parameters
+    - prices: List of prices, newest price is the first one in the list.
+    - current_sma: Previously calculated SMA
+    - new_value: New price to be added in the list
+    - period: MA period to be calculated. It must be equal or less than size of prices
+
+  ## Example
+  ```
+    iex> TAlib.Indicators.MA.update_sma(@prices, 44.6028, 46.0826, 10), 4)
+    44.6028
+  ```
+  """
+  def update_sma(prices, current_sma, new_value, period\\50)
+  def update_sma(prices, _current_sma, _new_value, period) when is_list(prices) and length(prices)< period+2, do: 0
+  def update_sma(prices, current_sma, new_value, period) when is_list(prices) do
+    value_to_remove = Enum.at(prices, period + 1)
+    current_sma + new_value/period - value_to_remove/period
   end
 
   @doc """
@@ -44,6 +67,24 @@ defmodule TAlib.Indicators.MA do
   def cma(prices, period) when is_list(prices) do
     price_history = Enum.slice(prices, 0, period)
     Enum.sum(price_history) / period
+  end
+
+  @doc """
+  Update Cumulative Moving Average when new price comes
+
+  ## Parameters
+    - current_cma: Previously calculated CMA
+    - new_value: New price to be added in the list
+    - period: MA period to be calculated.
+
+  ## Example
+  ```
+    iex> TAlib.Indicators.MA.update_cma(44.4513,44, 4)
+    44.36104
+  ```
+  """
+  def update_cma(current_cma, new_value, period) do
+    current_cma + ((new_value-current_cma)/(period + 1))
   end
 
   @doc """
@@ -93,4 +134,22 @@ defmodule TAlib.Indicators.MA do
     last_ema + (multiplier * (hd(prices)- last_ema))
   end
 
+  @doc """
+  Update Exponential Moving Average when new price comes
+
+  ## Parameters
+    - current_ema: Previously calculated EMA
+    - new_value: New price to be added in the list
+    - period: MA period to be calculated.
+
+  ## Example
+  ```
+    iex> TAlib.Indicators.MA.update_ema(1306.72, 1300, 50), 4)
+    1306.456471
+  ```
+  """
+  def update_ema(current_ema, new_value, period) do
+    multiplier = 2/(period+1)
+    current_ema + (multiplier * (new_value - current_ema))
+  end
 end
