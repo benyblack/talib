@@ -13,8 +13,8 @@ defmodule TAlib.Indicators.MA do
 
   ## Example
   ```
-    iex> TAlib.Indicators.MA.sma([1,2,3],3)
-    2.0
+    iex> TAlib.Indicators.MA.sma([1,2,3,4],3)
+    3.0
   ```
   """
   def sma(prices, period \\ 50)
@@ -23,6 +23,28 @@ defmodule TAlib.Indicators.MA do
   def sma(prices, period) when is_list(prices) do
     price_history = Enum.slice(prices, 1, period)
     Enum.sum(price_history) / period
+  end
+
+    @doc """
+  Update Simple Moving Average when new price comes
+
+  ## Parameters
+    - prices: List of prices, newest price is the first one in the list.
+    - current_sma: Previously calculated SMA
+    - new_value: New price to be added in the list
+    - period: MA period to be calculated. It must be equal or less than size of prices
+
+  ## Example
+  ```
+    iex> TAlib.Indicators.MA.update_sma(@prices, 44.6028, 46.0826, 10), 4)
+    44.6028
+  ```
+  """
+  def update_sma(prices, current_sma, new_value, period\\50)
+  def update_sma(prices, current_sma, new_value, period) when is_list(prices) and length(prices)< period+2, do: 0
+  def update_sma(prices, current_sma, new_value, period) when is_list(prices) do
+    value_to_remove = Enum.at(prices, period + 1)
+    current_sma + new_value/period - value_to_remove/period
   end
 
   @doc """
