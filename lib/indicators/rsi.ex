@@ -22,8 +22,16 @@ defmodule TAlib.Indicators.RSI do
   def rsi([], _), do: 0
   def rsi(prices, period) when is_list(prices) and length(prices) <= period, do: 0
   def rsi(prices, period) when is_list(prices) do
-    rs = average_gain(prices, period) / average_loss(prices, period)
-    (100 - (100 / (1 + rs)))
+    do_rs = fn
+      (_, 0.0) -> -1
+      (gain, loss) -> gain / loss
+    end
+    do_rsi = fn
+      (-1) -> 100
+      (rs) -> (100 - (100 / (1 + rs)))
+    end
+    rs = do_rs.(average_gain(prices, period), average_loss(prices, period))
+    do_rsi.(rs)
   end
 
   @doc """
