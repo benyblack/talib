@@ -64,6 +64,14 @@ defmodule TAlib.Tests.RsiTests do
     65.795
   ]
 
+  test "calculate RSI list" do
+    data =  for i <- 1..100, do: i
+    expected = [nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil] ++ List.duplicate(100, 86)
+    assert RSI.rsi_list(data, 14) == expected
+    expected2 = List.duplicate(0.0, 86) ++ [nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil]
+    assert RSI.rsi_list(data, 14, true) == expected2
+  end
+
   test "calculate RSI" do
     # Compared with https://www.marketvolume.com/quotes/calculatersi.asp
     assert Float.round(RSI.rsi(@prices3), 2) == 70.46

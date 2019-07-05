@@ -5,6 +5,30 @@ defmodule TAlib.Indicators.RSI do
   """
 
   @doc """
+  Calculate RSI for a list of items
+
+  ## Parameters
+    - data: List of prices
+    - period: Period of calculation. Default is 14.
+    - top_is_first: This one show if the list is ascending or descending based on dates. Regularly for OHLC data it needs to be false, because the older data comes first.
+
+  ## Example
+  ```
+    iex> data = [1,2,3 ... ,100]
+    iex> TAlib.Indicators.RSI.rsi_list(data)
+    [nil, nil, nil ... ,100,100,100]
+  ```
+  """
+  @spec rsi_list(list, number, bool) :: list
+  def rsi_list(data, period \\ 14, top_is_first \\ false)
+  def rsi_list(data, period, false), do: Enum.reverse(rsi_list(Enum.reverse(data), period, true))
+  def rsi_list(data, period, true) when length(data) == 1, do: [rsi(data, period)]
+  def rsi_list(data, period, true) do
+    rsi_of_head = rsi(data, period)
+    [rsi_of_head] ++ rsi_list(tl(data), period, true)
+  end
+
+  @doc """
   RSI calculation
 
   ## Parameters
@@ -20,7 +44,7 @@ defmodule TAlib.Indicators.RSI do
   """
   def rsi(prices, period \\ 14)
   def rsi([], _), do: 0
-  def rsi(prices, period) when is_list(prices) and length(prices) <= period, do: 0
+  def rsi(prices, period) when is_list(prices) and length(prices) <= period, do: nil
   def rsi(prices, period) when is_list(prices) do
     do_rs = fn
       (_, 0.0) -> -1
