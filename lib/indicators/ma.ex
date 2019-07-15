@@ -171,8 +171,8 @@ defmodule TAlib.Indicators.MA do
 
   ## Example
   ```
-    iex> TAlib.Indicators.MA.sma_list(1330.95, 1334.65, ...] , 3)
-    [nil, nil, 44.3289 ...]
+    iex> TAlib.Indicators.MA.ema_list(1330.95, 1334.65, ...] , 3)
+    [nil, nil,  44.3289, 44.2096, 44.1796 ...]
   ```
   """
   @spec ema_list(list(float), integer) :: list(float)
