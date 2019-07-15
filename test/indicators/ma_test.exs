@@ -61,10 +61,20 @@ defmodule TAlib.Tests.MaTests do
   end
 
   test "calculate EMA" do
-    assert MA.ema(@prices, 50) == 0
+    assert MA.ema(@prices, 50) == nil
     assert Float.round(MA.ema(@prices2, 5), 2) == 1328.45
     assert Float.round(MA.ema(@prices2, 13), 2) == 1306.72
 
     assert Float.round(MA.update_ema(1306.72, 1300, 50), 4) == 1306.4565
   end
+
+  test "Calculate EMA list" do
+    rounded = Enum.map(MA.ema_list(@prices, 3), fn
+      nil -> nil
+      x ->
+      Float.round(x, 4)
+    end)
+    assert  rounded == [nil, nil,  44.3289, 44.2096, 44.1796, 43.896, 44.1119, 44.4692, 44.7823, 45.1034, 45.4734, 45.778, 45.8355, 45.9342, 45.7741, 46.028]
+  end
+
 end
