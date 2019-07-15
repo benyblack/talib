@@ -46,7 +46,7 @@ defmodule TAlib.Indicators.MACD do
   def signal(prices, period) when is_list(prices) and length(prices) < (period*2-1), do: 0
   def signal(prices, period) when is_list(prices) do
     # needed for calculating MACD for each 9 days of the period
-    counter = 0..period*2-1
+    counter = 0..period*2 - 1
     macd_list = Enum.map(counter, fn(x) ->
       macd(Enum.slice(prices, x, length(prices)))
     end)
