@@ -21,7 +21,7 @@ by adding `talib` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:talib, "~> 0.3.5"}
+    {:talib, "~> 0.3.6"}
   ]
 end
 ```
