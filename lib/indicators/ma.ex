@@ -5,6 +5,34 @@ defmodule TAlib.Indicators.MA do
   """
 
   @doc """
+  Calculate a list of SMA
+
+  ## Parameters
+    - prices: List of prices, lates price is the last one in the list.
+    - period: MA period to be calculated. It must be equal or less than size of prices
+
+  ## Example
+  ```
+    iex> TAlib.Indicators.MA.sma_list(1330.95, 1334.65, ...] , 3)
+    [nil, nil, 44.3289 ...]
+  ```
+  """
+  @spec sma_list(list(float), integer) :: list(float)
+  def sma_list(prices, period \\ 50)
+  def sma_list(prices, period) do
+    reversed_prices = Enum.reverse(prices)
+    reversed_result = sma_list_all(reversed_prices, [], period)
+    Enum.reverse(reversed_result)
+  end
+
+  @spec sma_list_all(list(float), list(float), integer) :: list(float)
+  defp sma_list_all(prices, smas, _period) when length(prices) < 2, do: smas ++ [nil]
+  defp sma_list_all(prices, smas, period) do
+    new_smas = smas ++ [sma(prices, period)]
+    sma_list_all(tl(prices), new_smas, period)
+  end
+
+  @doc """
   Calculate Simple Moving Average
 
   ## Parameters
@@ -18,10 +46,10 @@ defmodule TAlib.Indicators.MA do
   ```
   """
   def sma(prices, period \\ 50)
-  def sma(_, 0), do: 0
-  def sma(prices, period) when is_list(prices) and length(prices) < period, do: 0
+  def sma(_, 0), do: nil
+  def sma(prices, period) when is_list(prices) and length(prices) < period, do: nil
   def sma(prices, period) when is_list(prices) do
-    price_history = Enum.slice(prices, 1, period)
+    price_history = Enum.slice(prices, 0, period)
     Enum.sum(price_history) / period
   end
 
@@ -125,13 +153,41 @@ defmodule TAlib.Indicators.MA do
   ```
   """
   def ema(prices, period \\ 50)
-  def ema(_, 0), do: 0
-  def ema(prices, period) when is_list(prices) and length(prices) < period, do: 0
+  def ema(_, 0), do: nil
+  def ema(prices, period) when is_list(prices) and length(prices) < period, do: nil
   def ema(prices, period) when is_list(prices) and length(prices)==period, do: sma(prices, period)
   def ema(prices, period) do
     multiplier = 2/(period+1)
     last_ema = ema(tl(prices), period)
     last_ema + (multiplier * (hd(prices)- last_ema))
+  end
+
+  @doc """
+  Calculate a list of EMA
+
+  ## Parameters
+    - prices: List of prices, lates price is the last one in the list.
+    - period: MA period to be calculated. It must be equal or less than size of prices
+
+  ## Example
+  ```
+    iex> TAlib.Indicators.MA.ema_list(1330.95, 1334.65, ...] , 3)
+    [nil, nil,  44.3289, 44.2096, 44.1796 ...]
+  ```
+  """
+  @spec ema_list(list(float), integer) :: list(float)
+  def ema_list(prices, period \\ 50)
+  def ema_list(prices, period) do
+    reversed_prices = Enum.reverse(prices)
+    reversed_result = ema_list_all(reversed_prices, [], period)
+    Enum.reverse(reversed_result)
+  end
+
+  @spec ema_list_all(list(float), list(float), integer) :: list(float)
+  defp ema_list_all(prices, emas, _period) when length(prices) < 2, do: emas ++ [nil]
+  defp ema_list_all(prices, emas, period) do
+    new_emas = emas ++ [ema(prices, period)]
+    ema_list_all(tl(prices), new_emas, period)
   end
 
   @doc """
