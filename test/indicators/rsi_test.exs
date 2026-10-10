@@ -1,5 +1,8 @@
-defmodule TAlib.Tests.RsiTests do
-  use ExUnit.Case
+defmodule TAlib.Indicators.RSITest do
+  use ExUnit.Case, async: true
+
+  doctest TAlib.Indicators.RSI
+
   alias TAlib.Indicators.RSI
 
   @prices [
@@ -64,43 +67,62 @@ defmodule TAlib.Tests.RsiTests do
     65.795
   ]
 
-  test "calculate RSI list" do
-    data =  for i <- 1..100, do: i
-    expected = [nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil] ++ List.duplicate(100, 86)
+  test "rsi_list/3 returns a nil-padded RSI series" do
+    data = Enum.to_list(1..100)
+
+    expected = List.duplicate(nil, 14) ++ List.duplicate(100.0, 86)
     assert RSI.rsi_list(data, 14) == expected
-    expected2 = List.duplicate(0.0, 86) ++ [nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil]
+
+    expected2 = List.duplicate(0.0, 86) ++ List.duplicate(nil, 14)
     assert RSI.rsi_list(data, 14, true) == expected2
   end
 
-  test "calculate RSI" do
+  test "rsi_list/3 returns [] for empty input" do
+    assert RSI.rsi_list([], 14) == []
+  end
+
+  test "rsi/2" do
     # Compared with https://www.marketvolume.com/quotes/calculatersi.asp
     assert Float.round(RSI.rsi(@prices3), 2) == 70.46
     assert Float.round(RSI.rsi(@prices2), 2) == 75.89
+    assert RSI.rsi([], 14) == nil
+    assert RSI.rsi([1, 2, 3], 14) == nil
+    # A flat window has no relative strength: RSI is undefined.
+    assert RSI.rsi([5, 5, 5, 5, 5], 4) == nil
   end
 
-  test "average loss" do
+  test "rsi/2 requires a positive integer period" do
+    assert_raise ArgumentError, fn -> RSI.rsi(@prices, 0) end
+    assert_raise ArgumentError, fn -> RSI.rsi_list([1, 2, 3], -1) end
+  end
+
+  test "average_loss/2" do
     assert RSI.average_loss([10, 20, 30, 40], 3) == 10
     assert RSI.average_loss([3, 2, 1]) == 0
     assert RSI.average_loss([]) == 0
     assert Float.round(RSI.average_loss(@prices), 4) == 0.1921
     assert RSI.average_loss([1, 2, 3, 4], 2) == 1
+    # A single price has no change to average (previously ArithmeticError).
+    assert RSI.average_loss([5], 3) == 0.0
   end
 
-  test "average gain" do
+  test "average_gain/2" do
     assert RSI.average_gain([30, 20, 10, 0], 3) == 10
     assert RSI.average_gain([]) == 0
     assert Float.round(RSI.average_gain(@prices), 2) == 0.10
     assert RSI.average_gain([4, 3, 2, 1], 2) == 1
+    # A single price has no change to average (previously ArithmeticError).
+    assert RSI.average_gain([5], 3) == 0.0
   end
 
-  test "total gain" do
+  test "gain/1" do
     assert RSI.gain([30, 20, 10, 0]) == 30
     assert RSI.gain([]) == 0
     assert RSI.gain([4, 3, 2, 1]) == 3
     assert Float.round(RSI.gain(@prices3), 2) == 3.34
   end
 
-  test "total loss" do
+  test "loss/1" do
     assert RSI.loss([10, 20, 30, 40]) == 30
     assert RSI.loss([3, 2, 1]) == 0
     assert RSI.loss([]) == 0
