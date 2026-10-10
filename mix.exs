@@ -2,7 +2,7 @@ defmodule TAlib.MixProject do
   use Mix.Project
 
   @app_name :talib
-  @version "0.3.6"
+  @version "0.4.0"
   @elixir_version "~> 1.8"
   @github "https://github.com/benyblack/talib"
 
@@ -12,9 +12,11 @@ defmodule TAlib.MixProject do
       name: "TAlib",
       version: @version,
       elixir: @elixir_version,
+      source_url: @github,
       package: package(),
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      docs: [main: "TAlib", extras: ["README.md"]]
     ]
   end
 
