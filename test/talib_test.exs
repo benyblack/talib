@@ -1,3 +1,0 @@
-defmodule TAlibTest do
-
-end

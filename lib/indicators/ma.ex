@@ -1,211 +1,273 @@
 defmodule TAlib.Indicators.MA do
   @moduledoc """
-  Moving Average indicator [Wikipedia](https://en.wikipedia.org/wiki/Moving_average)
-  Calculate SMA, WMA, and EMA
+  Moving average indicator [Wikipedia](https://en.wikipedia.org/wiki/Moving_average).
+
+  Calculates SMA, WMA, EMA and CMA, plus incremental `update_*` helpers for
+  maintaining a moving average as new prices arrive.
+
+  See `TAlib` for the input conventions: the scalar and `update_*` functions
+  take prices newest first, the `*_list` functions take prices oldest first.
+  All functions return `nil` when there is not enough data.
   """
+
+  defguardp is_valid_period(period) when is_integer(period) and period >= 1
 
   @doc """
-  Calculate a list of SMA
+  Calculate the Simple Moving Average of the `period` newest prices.
 
   ## Parameters
-    - prices: List of prices, lates price is the last one in the list.
-    - period: MA period to be calculated. It must be equal or less than size of prices
 
-  ## Example
-  ```
-    iex> TAlib.Indicators.MA.sma_list(1330.95, 1334.65, ...] , 3)
-    [nil, nil, 44.3289 ...]
-  ```
+    - prices: list of prices, newest first.
+    - period: lookback window, a positive integer.
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.sma([1, 2, 3, 4], 3)
+      2.0
   """
-  @spec sma_list(list(float), integer) :: list(float)
-  def sma_list(prices, period \\ 50)
-  def sma_list(prices, period) do
-    reversed_prices = Enum.reverse(prices)
-    reversed_result = sma_list_all(reversed_prices, [], period)
-    Enum.reverse(reversed_result)
-  end
-
-  @spec sma_list_all(list(float), list(float), integer) :: list(float)
-  defp sma_list_all(prices, smas, _period) when length(prices) < 2, do: smas ++ [nil]
-  defp sma_list_all(prices, smas, period) do
-    new_smas = smas ++ [sma(prices, period)]
-    sma_list_all(tl(prices), new_smas, period)
-  end
-
-  @doc """
-  Calculate Simple Moving Average
-
-  ## Parameters
-    - prices: List of prices, lates price is the first one in the list.
-    - period: MA period to be calculated. It must be equal or less than size of prices
-
-  ## Example
-  ```
-    iex> TAlib.Indicators.MA.sma([1,2,3,4],3)
-    3.0
-  ```
-  """
+  @spec sma(list(number), pos_integer) :: float | nil
   def sma(prices, period \\ 50)
-  def sma(_, 0), do: nil
+
+  def sma(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
   def sma(prices, period) when is_list(prices) and length(prices) < period, do: nil
-  def sma(prices, period) when is_list(prices) do
-    price_history = Enum.slice(prices, 0, period)
-    Enum.sum(price_history) / period
-  end
 
+  def sma(prices, period) when is_list(prices),
+    do: Enum.sum(Enum.take(prices, period)) / period
 
   @doc """
-  Update Simple Moving Average when new price comes
+  Calculate the full SMA series.
+
+  Returns a list aligned with `prices`: the first `period - 1` entries are
+  `nil`, and every later entry is the simple moving average of the window
+  ending at that point.
 
   ## Parameters
-    - prices: List of prices, newest price is the first one in the list.
-    - current_sma: Previously calculated SMA
-    - new_value: New price to be added in the list
-    - period: MA period to be calculated. It must be equal or less than size of prices
 
-  ## Example
-  ```
-    iex> TAlib.Indicators.MA.update_sma(@prices, 44.6028, 46.0826, 10), 4)
-    44.6028
-  ```
+    - prices: list of prices, oldest first.
+    - period: lookback window, a positive integer.
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.sma_list([1, 2, 3, 4, 5], 3)
+      [nil, nil, 2.0, 3.0, 4.0]
   """
-  def update_sma(prices, current_sma, new_value, period\\50)
-  def update_sma(prices, _current_sma, _new_value, period) when is_list(prices) and length(prices)< period+2, do: 0
+  @spec sma_list(list(number), pos_integer) :: list(float | nil)
+  def sma_list(prices, period \\ 50)
+
+  def sma_list(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def sma_list(prices, period) when is_list(prices),
+    do: map_series(prices, &sma(&1, period))
+
+  @doc """
+  Update a Simple Moving Average when a new price arrives.
+
+  `prices` (newest first) must **not** include `new_value`; the current
+  window is the `period` newest prices, and the value leaving it is
+  `Enum.at(prices, period - 1)`.
+
+  ## Parameters
+
+    - prices: list of prices, newest first, without `new_value`.
+    - current_sma: the previously calculated SMA.
+    - new_value: the new price.
+    - period: lookback window, a positive integer.
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.update_sma([5, 4, 3, 2, 1], 4.5, 3, 2)
+      4.0
+  """
+  @spec update_sma(list(number), number, number, pos_integer) :: float | nil
+  def update_sma(prices, current_sma, new_value, period \\ 50)
+
+  def update_sma(_prices, _current_sma, _new_value, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def update_sma(prices, _current_sma, _new_value, period)
+      when is_list(prices) and length(prices) < period,
+      do: nil
+
   def update_sma(prices, current_sma, new_value, period) when is_list(prices) do
-    value_to_remove = Enum.at(prices, period + 1)
-    current_sma + new_value/period - value_to_remove/period
+    value_to_remove = Enum.at(prices, period - 1)
+    current_sma + (new_value - value_to_remove) / period
   end
 
   @doc """
-  Calculate Cumulative Moving Average
+  Calculate the Cumulative (unweighted) Moving Average: the arithmetic mean
+  of **all** given prices. Unlike the other functions it takes no window;
+  use `update_cma/3` to maintain it incrementally.
 
   ## Parameters
-    - prices: List of prices, lates price is the first one in the list.
-    - period: MA period to be calculated. It must be less than size of prices
 
-  ## Example
-  ```
-    iex> TAlib.Indicators.MA.cma([0,1,2,3],3)
-    2.0
-  ```
+    - prices: list of prices (the mean is order-independent).
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.cma([0, 1, 2, 3])
+      1.5
   """
-  def cma(prices, period \\ 50)
-  def cma(_, 0), do: 0
-  def cma(prices, period) when is_list(prices) and length(prices) <= period, do: 0
-  def cma(prices, period) when is_list(prices) do
-    price_history = Enum.slice(prices, 0, period)
-    Enum.sum(price_history) / period
-  end
+  @spec cma(list(number)) :: float | nil
+  def cma([]), do: nil
+
+  def cma(prices) when is_list(prices), do: Enum.sum(prices) / length(prices)
 
   @doc """
-  Update Cumulative Moving Average when new price comes
+  Update a Cumulative Moving Average when a new price arrives.
+
+  `period` is the number of prices already averaged into `current_cma`.
 
   ## Parameters
-    - current_cma: Previously calculated CMA
-    - new_value: New price to be added in the list
-    - period: MA period to be calculated.
 
-  ## Example
-  ```
-    iex> TAlib.Indicators.MA.update_cma(44.4513,44, 4)
-    44.36104
-  ```
+    - current_cma: the previously calculated CMA.
+    - new_value: the new price.
+    - period: how many prices `current_cma` covers, a positive integer.
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.update_cma(44.45, 44.0, 4)
+      44.36
   """
-  def update_cma(current_cma, new_value, period) do
-    current_cma + ((new_value-current_cma)/(period + 1))
-  end
+  @spec update_cma(number, number, pos_integer) :: float
+  def update_cma(current_cma, new_value, period)
+
+  def update_cma(_current_cma, _new_value, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def update_cma(current_cma, new_value, period),
+    do: current_cma + (new_value - current_cma) / (period + 1)
 
   @doc """
-  Calculate Weighted Moving Average
+  Calculate the Linear Weighted Moving Average of the `period` newest
+  prices. The newest price gets the weight `period`, the oldest price in
+  the window gets 1.
 
   ## Parameters
-    - prices: List of prices, lates price is the first one in the list.
-    - period: MA period to be calculated. It must be equal or less than size of prices
 
-  ## Example
-  ```
-    iex> TAlib.Indicators.MA.wma([0,1,2,3],3)
-    2.3333333333333335
-  ```
+    - prices: list of prices, newest first.
+    - period: lookback window, a positive integer.
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.wma([3, 2, 1, 0], 3) |> Float.round(4)
+      2.3333
   """
+  @spec wma(list(number), pos_integer) :: float | nil
   def wma(prices, period \\ 50)
-  def wma(_, 0), do: 0
-  def wma(prices, period) when is_list(prices) and length(prices) < period, do: 0
+
+  def wma(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def wma(prices, period) when is_list(prices) and length(prices) < period, do: nil
+
   def wma(prices, period) when is_list(prices) do
-    price_history = Enum.slice(prices, 0, period)
     weighted_total =
-      Enum.with_index(price_history)
-      |> Enum.reduce(0, fn {val, idx}, acc -> acc + val * (idx + 1) end)
+      prices
+      |> Enum.take(period)
+      |> Enum.with_index()
+      |> Enum.reduce(0, fn {price, idx}, acc -> acc + price * (period - idx) end)
+
     weighted_total / (period * (period + 1) / 2)
   end
 
   @doc """
-  Calculate Exponential Moving Average
+  Calculate the Exponential Moving Average.
+
+  The series is seeded with the SMA of the oldest `period` prices, then
+  walked forward with `multiplier = 2 / (period + 1)`.
 
   ## Parameters
-    - prices: List of prices, lates price is the first one in the list.
-    - period: MA period to be calculated. It must be equal or less than size of prices
 
-  ## Example
-  ```
-    iex> TAlib.Indicators.MA.ema([0,1,2,3],3)
-    1.0
-  ```
+    - prices: list of prices, newest first.
+    - period: lookback window, a positive integer.
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.ema([4, 3, 2, 1], 2)
+      3.5
   """
+  @spec ema(list(number), pos_integer) :: float | nil
   def ema(prices, period \\ 50)
-  def ema(_, 0), do: nil
+
+  def ema(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
   def ema(prices, period) when is_list(prices) and length(prices) < period, do: nil
-  def ema(prices, period) when is_list(prices) and length(prices)==period, do: sma(prices, period)
-  def ema(prices, period) do
-    multiplier = 2/(period+1)
+
+  def ema(prices, period) when is_list(prices) and length(prices) == period,
+    do: sma(prices, period)
+
+  def ema(prices, period) when is_list(prices) do
+    multiplier = 2 / (period + 1)
     last_ema = ema(tl(prices), period)
-    last_ema + (multiplier * (hd(prices)- last_ema))
+    last_ema + multiplier * (hd(prices) - last_ema)
   end
 
   @doc """
-  Calculate a list of EMA
+  Calculate the full EMA series, seeded at the SMA of the oldest `period`
+  prices (the same series `ema/2` walks backwards from).
+
+  Returns a list aligned with `prices`: the first `period - 1` entries are
+  `nil`, and every later entry is the EMA as of that point.
 
   ## Parameters
-    - prices: List of prices, lates price is the last one in the list.
-    - period: MA period to be calculated. It must be equal or less than size of prices
 
-  ## Example
-  ```
-    iex> TAlib.Indicators.MA.ema_list(1330.95, 1334.65, ...] , 3)
-    [nil, nil,  44.3289, 44.2096, 44.1796 ...]
-  ```
+    - prices: list of prices, oldest first.
+    - period: lookback window, a positive integer.
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.ema_list([1, 2, 3, 4, 5], 2)
+      [nil, 1.5, 2.5, 3.5, 4.5]
   """
-  @spec ema_list(list(float), integer) :: list(float)
+  @spec ema_list(list(number), pos_integer) :: list(float | nil)
   def ema_list(prices, period \\ 50)
-  def ema_list(prices, period) do
-    reversed_prices = Enum.reverse(prices)
-    reversed_result = ema_list_all(reversed_prices, [], period)
-    Enum.reverse(reversed_result)
-  end
 
-  @spec ema_list_all(list(float), list(float), integer) :: list(float)
-  defp ema_list_all(prices, emas, _period) when length(prices) < 2, do: emas ++ [nil]
-  defp ema_list_all(prices, emas, period) do
-    new_emas = emas ++ [ema(prices, period)]
-    ema_list_all(tl(prices), new_emas, period)
-  end
+  def ema_list(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def ema_list(prices, period) when is_list(prices),
+    do: map_series(prices, &ema(&1, period))
 
   @doc """
-  Update Exponential Moving Average when new price comes
+  Update an Exponential Moving Average when a new price arrives.
 
   ## Parameters
-    - current_ema: Previously calculated EMA
-    - new_value: New price to be added in the list
-    - period: MA period to be calculated.
 
-  ## Example
-  ```
-    iex> TAlib.Indicators.MA.update_ema(1306.72, 1300, 50), 4)
-    1306.456471
-  ```
+    - current_ema: the previously calculated EMA.
+    - new_value: the new price.
+    - period: EMA period, a positive integer.
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.update_ema(1306.72, 1300, 50) |> Float.round(4)
+      1306.4565
   """
+  @spec update_ema(number, number, pos_integer) :: float
+  def update_ema(current_ema, new_value, period)
+
+  def update_ema(_current_ema, _new_value, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
   def update_ema(current_ema, new_value, period) do
-    multiplier = 2/(period+1)
-    current_ema + (multiplier * (new_value - current_ema))
+    multiplier = 2 / (period + 1)
+    current_ema + multiplier * (new_value - current_ema)
   end
+
+  # Applies `fun` to every suffix of the reversed (newest-first) list.
+  # Dropping the newest price at each step yields the value at every point
+  # of the chronological series, and consing onto the accumulator keeps the
+  # result in chronological order without re-reversing.
+  defp map_series(prices, fun) do
+    prices
+    |> Enum.reverse()
+    |> walk_series([], fun)
+  end
+
+  defp walk_series([], acc, _fun), do: acc
+
+  defp walk_series(prices, acc, fun), do: walk_series(tl(prices), [fun.(prices) | acc], fun)
 end

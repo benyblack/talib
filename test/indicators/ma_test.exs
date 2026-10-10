@@ -1,8 +1,12 @@
-defmodule TAlib.Tests.MaTests do
-  use ExUnit.Case
+defmodule TAlib.Indicators.MATest do
+  use ExUnit.Case, async: true
+
+  doctest TAlib.Indicators.MA
+
   alias TAlib.Indicators.MA
 
-  @prices [
+  # Chronological series (oldest first) for the *_list functions.
+  @series [
     44.3289,
     44.3189,
     44.3389,
@@ -21,60 +25,213 @@ defmodule TAlib.Tests.MaTests do
     46.282
   ]
 
-  @prices2 [1330.95, 1334.65, 1340, 1338.7, 1319.6, 1305.75, 1303.8, 1309.6, 1296.95, 1254.25, 1266.2, 1266, 1270.7, 1244.55, 1233.7, 1244.5, 1227.05, 1225.05, 1235.75, 1246.55, 1248.3, 1245.7, 1250.5, 1242.95, 1228.5, 1246.9, 1258.2, 1250.2, 1253.15, 1233.8, 1255.15, 1266.5, 1259.9, 1257.75, 1273.3, 1272.2, 1272.3, 1264.65, 1258.9, 1235.15, 1254.6, 1258.35, 1293.2, 1309.15, 1281.1, 1276.1, 1286.7, 1287.45, 1293.2, 1307.35, 1345.6, 1300.6, 1299.6, 1299.4, 1301.8, 1303.65, 1308.95, 1319.25, 1319.2, 1336.75, 1313.3, 1309, 1295.3, 1302.15, 1302.7, 1314.15, 1334.1, 1333.95, 1399.65, 1430.1, 1438.65, 1429.9, 1399.95, 1396.75, 1395.9, 1378.35, 1372.7, 1382.05, 1389.2, 1408.7, 1386.3, 1399.1, 1356, 1348.7, 1345.35, 1341.2, 1342.7, 1350.7, 1322.9, 1291.65, 1287.65, 1297.7, 1307.4, 1308.05, 1305.15, 1306.95, 1318.15, 1317.55, 1279.15, 1208.2]
+  # The same data, newest first, for the scalar functions.
+  @prices Enum.reverse(@series)
 
-  test "Calculate SMA list" do
-    rounded = Enum.map(MA.sma_list(@prices, 3), fn
-      nil -> nil
-      x ->
-      Float.round(x, 4)
-    end)
-    assert  rounded == [nil, nil, 44.3289, 44.2493, 44.1929,
-    43.9508, 44.03, 44.2555, 44.7499, 45.1155,
-    45.4544, 45.7835, 45.9397, 46.0028, 45.8466,
-    45.9763]
-  end
+  @prices2 [
+    1330.95,
+    1334.65,
+    1340,
+    1338.7,
+    1319.6,
+    1305.75,
+    1303.8,
+    1309.6,
+    1296.95,
+    1254.25,
+    1266.2,
+    1266,
+    1270.7,
+    1244.55,
+    1233.7,
+    1244.5,
+    1227.05,
+    1225.05,
+    1235.75,
+    1246.55,
+    1248.3,
+    1245.7,
+    1250.5,
+    1242.95,
+    1228.5,
+    1246.9,
+    1258.2,
+    1250.2,
+    1253.15,
+    1233.8,
+    1255.15,
+    1266.5,
+    1259.9,
+    1257.75,
+    1273.3,
+    1272.2,
+    1272.3,
+    1264.65,
+    1258.9,
+    1235.15,
+    1254.6,
+    1258.35,
+    1293.2,
+    1309.15,
+    1281.1,
+    1276.1,
+    1286.7,
+    1287.45,
+    1293.2,
+    1307.35,
+    1345.6,
+    1300.6,
+    1299.6,
+    1299.4,
+    1301.8,
+    1303.65,
+    1308.95,
+    1319.25,
+    1319.2,
+    1336.75,
+    1313.3,
+    1309,
+    1295.3,
+    1302.15,
+    1302.7,
+    1314.15,
+    1334.1,
+    1333.95,
+    1399.65,
+    1430.1,
+    1438.65,
+    1429.9,
+    1399.95,
+    1396.75,
+    1395.9,
+    1378.35,
+    1372.7,
+    1382.05,
+    1389.2,
+    1408.7,
+    1386.3,
+    1399.1,
+    1356,
+    1348.7,
+    1345.35,
+    1341.2,
+    1342.7,
+    1350.7,
+    1322.9,
+    1291.65,
+    1287.65,
+    1297.7,
+    1307.4,
+    1308.05,
+    1305.15,
+    1306.95,
+    1318.15,
+    1317.55,
+    1279.15,
+    1208.2
+  ]
 
-  test "calculate SMA" do
-    assert MA.sma(@prices, 50) == nil
-    assert MA.sma(@prices) == nil #default period is 50
-    assert Float.round(MA.sma(@prices, 10), 4) == 44.4513
+  test "sma/2" do
+    assert MA.sma(@series, 50) == nil
+    assert MA.sma(@prices) == nil
+    assert Float.round(MA.sma(@prices, 10), 4) == 45.5422
     assert Float.round(MA.sma([1304.70, 1297.00, 1289.80, 1277.90, 1281.90], 4), 2) == 1292.35
-
-    assert Float.round(MA.update_sma(@prices, 44.6028, 46.0826, 10), 4) == 44.6028
   end
 
-  test "calculate CMA" do
-    assert MA.cma(@prices, 50) == 0
-    assert MA.cma(@prices) == 0 #default period is 50
-    assert Float.round(MA.cma(@prices, 10), 4) == 44.4513
-
-    assert MA.update_cma(44.4513,44, 4) == 44.36104
-
+  test "sma_list/2 returns a nil-padded rolling series" do
+    assert round4(MA.sma_list(@series, 3)) == [
+             nil,
+             nil,
+             44.3289,
+             44.2493,
+             44.1929,
+             43.9508,
+             44.03,
+             44.2555,
+             44.7499,
+             45.1155,
+             45.4544,
+             45.7835,
+             45.9397,
+             46.0028,
+             45.8466,
+             45.9763
+           ]
   end
 
-  test "calculate WMA" do
-    assert MA.wma(@prices, 50) == 0
-    assert MA.wma(@prices) == 0 #default period is 50
-    assert Float.round(MA.wma([0,1,2,3], 3), 4) == 1.3333
-    assert Float.round(MA.wma(@prices, 10), 4) == 44.6141
+  test "sma_list/2 and ema_list/2 return [] for empty input" do
+    assert MA.sma_list([], 3) == []
+    assert MA.ema_list([], 3) == []
   end
 
-  test "calculate EMA" do
+  test "update_sma/4 matches recomputing the window" do
+    period = 10
+    prices = Enum.take(@prices, 20)
+    current = MA.sma(prices, period)
+    new_value = 46.5
+    shifted = [new_value | Enum.take(prices, period - 1)]
+
+    updated = MA.update_sma(prices, current, new_value, period)
+    assert abs(updated - MA.sma(shifted, period)) < 1.0e-9
+  end
+
+  test "update_sma/4 returns nil with insufficient history" do
+    assert MA.update_sma([1, 2], 1.5, 3, 5) == nil
+  end
+
+  test "cma/1 is the mean of all prices" do
+    assert MA.cma([]) == nil
+    assert Float.round(MA.cma(@series), 4) == 45.0163
+  end
+
+  test "update_cma/3" do
+    assert MA.update_cma(44.4513, 44, 4) == 44.36104
+  end
+
+  test "wma/2 weights the newest price highest" do
+    assert MA.wma(@prices, 50) == nil
+    assert MA.wma(@prices) == nil
+    assert Float.round(MA.wma(@prices, 10), 4) == 45.8098
+  end
+
+  test "ema/2" do
     assert MA.ema(@prices, 50) == nil
     assert Float.round(MA.ema(@prices2, 5), 2) == 1328.45
     assert Float.round(MA.ema(@prices2, 13), 2) == 1306.72
-
-    assert Float.round(MA.update_ema(1306.72, 1300, 50), 4) == 1306.4565
   end
 
-  test "Calculate EMA list" do
-    rounded = Enum.map(MA.ema_list(@prices, 3), fn
+  test "ema_list/2 returns a nil-padded EMA series" do
+    assert round4(MA.ema_list(@series, 3)) == [
+             nil,
+             nil,
+             44.3289,
+             44.2096,
+             44.1796,
+             43.896,
+             44.1119,
+             44.4692,
+             44.7823,
+             45.1034,
+             45.4734,
+             45.778,
+             45.8355,
+             45.9342,
+             45.7741,
+             46.028
+           ]
+  end
+
+  test "periods must be positive integers" do
+    assert_raise ArgumentError, ~r/positive integer/, fn -> MA.sma(@prices, 0) end
+    assert_raise ArgumentError, fn -> MA.ema(@prices, -3) end
+    assert_raise ArgumentError, fn -> MA.wma(@prices, 2.5) end
+    assert_raise ArgumentError, fn -> MA.sma_list(@series, 0) end
+  end
+
+  defp round4(list) do
+    Enum.map(list, fn
       nil -> nil
-      x ->
-      Float.round(x, 4)
+      x -> Float.round(x, 4)
     end)
-    assert  rounded == [nil, nil,  44.3289, 44.2096, 44.1796, 43.896, 44.1119, 44.4692, 44.7823, 45.1034, 45.4734, 45.778, 45.8355, 45.9342, 45.7741, 46.028]
   end
-
 end
