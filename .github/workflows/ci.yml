@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+
+jobs:
+  test:
+    name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - elixir: 1.15.x
+            otp: 25.x
+          - elixir: 1.17.x
+            otp: 26.x
+          - elixir: 1.18.x
+            otp: 27.x
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+      # The package has no test dependencies, so no `mix deps.get` is needed.
+      - run: mix format --check-formatted
+      - run: mix compile --warnings-as-errors
+      - run: mix test
