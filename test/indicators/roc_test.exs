@@ -124,4 +124,10 @@ defmodule TAlib.Indicators.ROCTest do
     assert_raise ArgumentError, ~r/positive integer/, fn -> ROC.roc(@prices, 0) end
     assert_raise ArgumentError, fn -> ROC.roc_list(@prices, -1) end
   end
+
+  test "rocp/2, rocr/2 and rocr100/2" do
+    assert Float.round(ROC.rocp(@prices, 12), 4) == 0.0474
+    assert Float.round(ROC.rocr(@prices, 12), 4) == 1.0474
+    assert Float.round(ROC.rocr100(@prices, 12), 4) == 104.7415
+  end
 end

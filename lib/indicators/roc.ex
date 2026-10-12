@@ -73,4 +73,57 @@ defmodule TAlib.Indicators.ROC do
   defp do_roc([current | current_rest], [base | base_rest], acc) do
     do_roc(current_rest, base_rest, [(current / base - 1) * 100 | acc])
   end
+
+  @doc """
+  Rate of change Percentage: `(price / lagged price) - 1`.
+
+      iex> TAlib.Indicators.ROC.rocp([1, 2, 4, 8], 2)
+      3.0
+  """
+  @spec rocp(list(number), pos_integer) :: float | nil
+  def rocp(prices, period \\ 14)
+
+  def rocp(_prices, period) when not is_valid_period(period), do: TAlib.invalid_period!(period)
+
+  def rocp(prices, period) when is_list(prices) and length(prices) <= period, do: nil
+
+  def rocp(prices, period) when is_list(prices),
+    do: lagged(prices, period, fn current, base -> current / base - 1 end)
+
+  @doc """
+  Rate of change Ratio: `price / lagged price`.
+
+      iex> TAlib.Indicators.ROC.rocr([1, 2, 4, 8], 2)
+      4.0
+  """
+  @spec rocr(list(number), pos_integer) :: float | nil
+  def rocr(prices, period \\ 14)
+
+  def rocr(_prices, period) when not is_valid_period(period), do: TAlib.invalid_period!(period)
+
+  def rocr(prices, period) when is_list(prices) and length(prices) <= period, do: nil
+
+  def rocr(prices, period) when is_list(prices),
+    do: lagged(prices, period, fn current, base -> current / base end)
+
+  @doc """
+  Rate of change Ratio scaled by 100: `100 * price / lagged price`.
+
+      iex> TAlib.Indicators.ROC.rocr100([1, 2, 4, 8], 2)
+      400.0
+  """
+  @spec rocr100(list(number), pos_integer) :: float | nil
+  def rocr100(prices, period \\ 14)
+
+  def rocr100(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def rocr100(prices, period) when is_list(prices) and length(prices) <= period, do: nil
+
+  def rocr100(prices, period) when is_list(prices),
+    do: lagged(prices, period, fn current, base -> 100 * current / base end)
+
+  defp lagged(prices, period, fun) do
+    fun.(List.last(prices), Enum.at(prices, length(prices) - period - 1))
+  end
 end

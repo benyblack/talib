@@ -139,4 +139,8 @@ defmodule TAlib.Indicators.DonchianTest do
     assert_raise ArgumentError, ~r/positive integer/, fn -> Donchian.donchian(@bars, 0) end
     assert_raise ArgumentError, fn -> Donchian.donchian_list(@bars, -1) end
   end
+
+  test "midprice/2 is the middle channel line" do
+    assert Float.round(Donchian.midprice(@bars, 14), 2) == 1292.78
+  end
 end

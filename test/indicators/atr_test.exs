@@ -135,4 +135,13 @@ defmodule TAlib.Indicators.ATRTest do
     assert_raise ArgumentError, ~r/positive integer/, fn -> ATR.atr(@bars, 0) end
     assert_raise ArgumentError, fn -> ATR.atr_list(@bars, -1) end
   end
+
+  test "true_range/1 and natr/2" do
+    trs = ATR.true_range(@bars)
+    assert length(trs) == length(@bars)
+    assert hd(trs) == hd(@bars).high - hd(@bars).low
+
+    assert ATR.natr(@bars, 200) == nil
+    assert Float.round(ATR.natr(@bars, 14), 4) == 0.9566
+  end
 end

@@ -238,4 +238,100 @@ defmodule TAlib.Indicators.ADX do
       dx |> MA.rma_list(period) |> Enum.reject(&is_nil/1)
     end
   end
+
+  @doc """
+  Calculate the latest DX value: `100 * |+DI - -DI| / (+DI + -DI)`.
+
+      iex> bars = [
+      ...>   %{high: 10, low: 5, close: 7},
+      ...>   %{high: 11, low: 6, close: 9},
+      ...>   %{high: 12, low: 7, close: 8}
+      ...> ]
+      iex> TAlib.Indicators.ADX.dx(bars, 2) |> Float.round(4)
+      100.0
+  """
+  @spec dx(list(map), pos_integer) :: float | nil
+  def dx(bars, period \\ 14)
+
+  def dx(_bars, period) when not is_valid_period(period), do: TAlib.invalid_period!(period)
+
+  def dx(bars, period) when is_list(bars) and length(bars) < period, do: nil
+
+  def dx(bars, period) when is_list(bars), do: List.last(dx_values(bars, period))
+
+  @doc """
+  Calculate the latest ADX Rating: the average of the current ADX and the
+  ADX `period - 1` bars ago.
+
+  At least `3 * period - 2` bars are required; otherwise `nil` is
+  returned.
+
+      iex> bars = [
+      ...>   %{high: 10, low: 5, close: 7},
+      ...>   %{high: 11, low: 6, close: 9},
+      ...>   %{high: 12, low: 7, close: 8},
+      ...>   %{high: 12, low: 8, close: 10}
+      ...> ]
+      iex> TAlib.Indicators.ADX.adxr(bars, 2) |> Float.round(4)
+      100.0
+  """
+  @spec adxr(list(map), pos_integer) :: float | nil
+  def adxr(bars, period \\ 14)
+
+  def adxr(_bars, period) when not is_valid_period(period), do: TAlib.invalid_period!(period)
+
+  def adxr(bars, period) when is_list(bars) and length(bars) < 3 * period - 2, do: nil
+
+  def adxr(bars, period) when is_list(bars) do
+    case adx_values(bars, period) do
+      nil -> nil
+      values -> (List.last(values) + Enum.at(values, length(values) - period)) / 2
+    end
+  end
+
+  @doc """
+  The raw +DM per bar (the up-move that exceeds the opposite down-move);
+  the first bar has no previous bar to compare against and is 0.
+
+      iex> TAlib.Indicators.ADX.plus_dm([
+      ...>   %{high: 10, low: 5, close: 7},
+      ...>   %{high: 11, low: 6, close: 9},
+      ...>   %{high: 12, low: 7, close: 8}
+      ...> ])
+      [0, 1, 1]
+  """
+  @spec plus_dm(list(map)) :: list(number)
+  def plus_dm(bars) when is_list(bars) do
+    case bars do
+      [] -> []
+      [%{high: high, low: low} | rest] -> elem(dm_walk(rest, {high, low}, {[0], [0]}), 0)
+    end
+  end
+
+  @doc """
+  The raw -DM per bar; the first bar is 0.
+
+      iex> TAlib.Indicators.ADX.minus_dm([
+      ...>   %{high: 10, low: 5, close: 7},
+      ...>   %{high: 11, low: 6, close: 9},
+      ...>   %{high: 12, low: 7, close: 8}
+      ...> ])
+      [0, 0, 0]
+  """
+  @spec minus_dm(list(map)) :: list(number)
+  def minus_dm(bars) when is_list(bars) do
+    case bars do
+      [] -> []
+      [%{high: high, low: low} | rest] -> elem(dm_walk(rest, {high, low}, {[0], [0]}), 1)
+    end
+  end
+
+  # The DX series, defined from index period - 1 on.
+  defp dx_values(bars, period) do
+    bars
+    |> directional_lines(period)
+    |> Enum.zip(negative_directional_lines(bars, period))
+    |> Enum.reject(fn {p, m} -> is_nil(p) or is_nil(m) or p + m == 0 end)
+    |> Enum.map(fn {p, m} -> 100 * abs(p - m) / (p + m) end)
+  end
 end

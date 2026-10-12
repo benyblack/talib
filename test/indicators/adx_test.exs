@@ -153,4 +153,15 @@ defmodule TAlib.Indicators.ADXTest do
     assert_raise ArgumentError, fn -> ADX.plus_di(@bars, -1) end
     assert_raise ArgumentError, fn -> ADX.adx_all(@bars, 1.5) end
   end
+
+  test "dx/2, adxr/2 and the raw DM series" do
+    assert Float.round(ADX.dx(@bars, 14), 4) == 31.4331
+    assert ADX.adxr(Enum.take(@bars, 39), 14) == nil
+    assert Float.round(ADX.adxr(@bars, 14), 4) == 17.6999
+
+    plus = ADX.plus_dm(@bars)
+    minus = ADX.minus_dm(@bars)
+    assert length(plus) == length(@bars) and hd(plus) == 0
+    assert length(minus) == length(@bars) and hd(minus) == 0
+  end
 end

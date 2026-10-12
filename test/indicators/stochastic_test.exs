@@ -146,4 +146,10 @@ defmodule TAlib.Indicators.StochasticTest do
     assert_raise ArgumentError, fn -> Stochastic.stochastic_k(@prices, 0) end
     assert_raise ArgumentError, fn -> Stochastic.stochastic_d(@prices, 14, 0) end
   end
+
+  test "slow/4 returns the TA-Lib STOCH lines" do
+    values = Stochastic.slow(@prices, 14, 3, 3)
+    assert Float.round(values.k, 4) == 95.1619
+    assert Float.round(values.d, 4) == 97.8281
+  end
 end
