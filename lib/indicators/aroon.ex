@@ -25,7 +25,7 @@ defmodule TAlib.Indicators.Aroon do
   ## Examples
 
       iex> TAlib.Indicators.Aroon.aroon([5, 3, 8, 2, 6, 9, 4], 3) |> Enum.sort()
-      [down: 0.0, up: 66.6667]
+      [down: 0.0, up: 66.66666666666667]
   """
   @spec aroon(list(number), pos_integer) :: %{up: float, down: float} | nil
   def aroon(prices, period \\ 14)
