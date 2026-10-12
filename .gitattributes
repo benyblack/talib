@@ -1,0 +1,2 @@
+# CI enforces "mix format", which normalizes to LF.
+* text=auto eol=lf
