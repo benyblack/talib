@@ -231,4 +231,87 @@ defmodule TAlib.Indicators.MACD do
     |> Enum.take(-2 * period)
     |> MA.ema(period)
   end
+
+  @doc """
+  MACD with configurable moving-average types (TA-Lib MACDEXT): the
+  fast line, slow line and signal EMA all use the given `type`
+  (default `:ema`, the plain `macd/3` behaviour). Supported types are
+  those of `MA.ma/3`.
+
+      iex> %{macd: m, signal: s, histogram: h} = TAlib.Indicators.MACD.macd_ext([1, 4, 3, 5, 2, 6], 3, 2, 2, :sma)
+      iex> {Float.round(m, 4), Float.round(s, 4), Float.round(h, 4)}
+      {0.3333, 0.0833, 0.25}
+  """
+  @spec macd_ext(list(number), pos_integer, pos_integer, pos_integer, atom) ::
+          %{macd: float | nil, signal: float | nil, histogram: float | nil}
+  def macd_ext(prices, fast \\ 12, slow \\ 26, signal_period \\ 9, type \\ :ema)
+
+  def macd_ext(prices, fast, slow, signal_period, type) when is_list(prices) do
+    fast_series = ma_series_of_type(prices, fast, type)
+    slow_series = ma_series_of_type(prices, slow, type)
+
+    macd_line =
+      fast_series
+      |> Enum.zip(slow_series)
+      |> Enum.map(fn
+        {nil, _} -> nil
+        {_, nil} -> nil
+        {f, s} -> f - s
+      end)
+
+    signal_line = macd_line |> Enum.reject(&is_nil/1) |> ma_series_of_type(signal_period, type)
+
+    macd_value = List.last(macd_line)
+    signal_value = List.last(signal_line)
+
+    histogram_value =
+      case {macd_value, signal_value} do
+        {m, s} when is_number(m) and is_number(s) -> m - s
+        _ -> nil
+      end
+
+    %{macd: macd_value, signal: signal_value, histogram: histogram_value}
+  end
+
+  defp ma_series_of_type(prices, period, type) do
+    case type do
+      :sma -> MA.sma_list(prices, period)
+      :ema -> MA.ema_list(prices, period)
+      :wma -> MA.wma_list(prices, period)
+      :dema -> MA.dema_list(prices, period)
+      :tema -> MA.tema_list(prices, period)
+      :trima -> MA.trima_list(prices, period)
+      :kama -> MA.kama_list(prices, period)
+      :t3 -> MA.t3_list(prices, period)
+      type -> raise(ArgumentError, "unknown MA type #{inspect(type)}")
+    end
+  end
+
+  @doc """
+  MACD with the TA-Lib MACDFIX signal convention: the signal line is
+  the EMA over the whole MACD series starting at its first defined
+  value (rather than a trailing window).
+
+      iex> TAlib.Indicators.MACD.macd_fix([1, 4, 3, 5, 2, 6], 3, 2, 2) |> Map.get(:macd) |> Float.round(4)
+      -0.4614
+  """
+  @spec macd_fix(list(number), pos_integer, pos_integer, pos_integer) ::
+          %{macd: float | nil, signal: float | nil, histogram: float | nil}
+  def macd_fix(prices, fast \\ 12, slow \\ 26, signal_period \\ 9)
+
+  def macd_fix(prices, fast, slow, signal_period) when is_list(prices) do
+    macd_line = prices |> macd_series(fast, slow) |> Enum.reject(&is_nil/1)
+    signal_line = macd_line |> MA.ema_list(signal_period) |> Enum.reject(&is_nil/1)
+
+    macd_value = List.last(macd_line)
+    signal_value = List.last(signal_line)
+
+    histogram_value =
+      case {macd_value, signal_value} do
+        {m, s} when is_number(m) and is_number(s) -> m - s
+        _ -> nil
+      end
+
+    %{macd: macd_value, signal: signal_value, histogram: histogram_value}
+  end
 end

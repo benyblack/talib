@@ -127,4 +127,9 @@ defmodule TAlib.Indicators.SARTest do
     assert Float.round(List.last(series), 4) == 1286.429
     assert SAR.sar(@bars) == List.last(series)
   end
+
+  test "sar_ext/4 shares the base SAR behaviour" do
+    assert SAR.sar_ext(@bars) == SAR.sar(@bars)
+    assert SAR.sar_ext(@bars, 0.02, 0.02, 0.2) == SAR.sar(@bars)
+  end
 end

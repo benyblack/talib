@@ -126,4 +126,27 @@ defmodule TAlib.Indicators.SAR do
   defp decelerate(low, ep, af, af_step, af_max) do
     if low < ep, do: {low, min(af + af_step, af_max)}, else: {ep, af}
   end
+
+  @doc """
+  The extended Parabolic SAR (TA-Lib SAREXT) with the standard start,
+  step and maximum acceleration factors.
+
+      iex> bars = [
+      ...>   %{high: 10, low: 9, close: 9.5},
+      ...>   %{high: 11, low: 9.5, close: 10.5},
+      ...>   %{high: 12, low: 10, close: 11.5}
+      ...> ]
+      iex> TAlib.Indicators.SAR.sar_ext(bars)
+      9
+  """
+  @spec sar_ext(list(map), number, number, number) :: number | nil
+  def sar_ext(bars, af_start \\ 0.02, af_step \\ 0.02, af_max \\ 0.2)
+
+  def sar_ext(bars, af_start, af_step, af_max) when is_list(bars),
+    do: List.last(sar_ext_list(bars, af_start, af_step, af_max))
+
+  def sar_ext_list(bars, af_start \\ 0.02, af_step \\ 0.02, af_max \\ 0.2)
+
+  def sar_ext_list(bars, af_start, af_step, af_max) when is_list(bars),
+    do: sar_list(bars, af_start, af_step, af_max)
 end
