@@ -86,9 +86,11 @@ defmodule TAlib.Indicators.RSITest do
   end
 
   test "rsi/2" do
-    # Compared with https://www.marketvolume.com/quotes/calculatersi.asp
-    assert Float.round(RSI.rsi(@prices3), 2) == 70.46
-    assert Float.round(RSI.rsi(@prices2), 2) == 75.89
+    # Wilder-smoothed (TA-Lib) values, cross-checked against the
+    # reference implementation.
+    assert Float.round(RSI.rsi(@prices3), 4) == 70.4641
+    assert Float.round(RSI.rsi(@prices2), 4) == 77.0633
+    assert Float.round(RSI.rsi(@prices), 4) == 29.5353
     assert RSI.rsi([], 14) == nil
     assert RSI.rsi([1, 2, 3], 14) == nil
     # A flat window has no relative strength: RSI is undefined.
@@ -101,22 +103,22 @@ defmodule TAlib.Indicators.RSITest do
   end
 
   test "average_loss/2" do
-    assert RSI.average_loss([40, 30, 20, 10], 3) == 10
-    assert RSI.average_loss([1, 2, 3]) == 0
-    assert RSI.average_loss([]) == 0
-    assert Float.round(RSI.average_loss(@prices), 4) == 0.1921
-    assert RSI.average_loss([4, 3, 2, 1], 2) == 1
+    assert Float.round(RSI.average_loss([40, 30, 20, 10], 3), 4) == 10.0
+    assert RSI.average_loss([1, 2, 3]) == nil
+    assert RSI.average_loss([]) == nil
+    assert Float.round(RSI.average_loss(@prices), 4) == 0.2069
+    assert Float.round(RSI.average_loss([4, 3, 2, 1], 2), 4) == 1.0
     # A single price has no change to average.
-    assert RSI.average_loss([5], 3) == 0.0
+    assert RSI.average_loss([5], 3) == nil
   end
 
   test "average_gain/2" do
-    assert RSI.average_gain([0, 10, 20, 30], 3) == 10
-    assert RSI.average_gain([]) == 0
-    assert Float.round(RSI.average_gain(@prices), 2) == 0.10
-    assert RSI.average_gain([1, 2, 3, 4], 2) == 1
+    assert Float.round(RSI.average_gain([0, 10, 20, 30], 3), 4) == 10.0
+    assert RSI.average_gain([]) == nil
+    assert Float.round(RSI.average_gain(@prices), 4) == 0.0867
+    assert Float.round(RSI.average_gain([1, 2, 3, 4], 2), 4) == 1.0
     # A single price has no change to average.
-    assert RSI.average_gain([5], 3) == 0.0
+    assert RSI.average_gain([5], 3) == nil
   end
 
   test "gain/1" do
