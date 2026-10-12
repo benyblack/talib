@@ -7,9 +7,10 @@ defmodule TAlib.Indicators.Stochastic do
   * `%K = (Close - Lowest Low) / (Highest High - Lowest Low) * 100`
   * `%D = SMA(%K, d_period)`
 
-  See `TAlib` for the input conventions: prices are given newest first.
-  `nil` is returned when there is not enough data or the window has no
-  range (flat prices), since `%K` is then undefined.
+  See `TAlib` for the input conventions: prices are always given in
+  chronological order, oldest first, and series are returned aligned with
+  the input. `nil` is returned when there is not enough data or the window
+  has no range (flat prices), since `%K` is then undefined.
 
   Note that with a plain price list, close, high and low all come from the
   same series; for proper high/low support an OHLC input shape is needed.
@@ -22,13 +23,13 @@ defmodule TAlib.Indicators.Stochastic do
 
   ## Parameters
 
-    - prices: list of prices, newest first.
+    - prices: list of prices, oldest first.
     - period: lookback window, a positive integer (default 14).
 
   ## Examples
 
-      iex> TAlib.Indicators.Stochastic.stochastic_k([3, 2, 5, 1, 4], 5)
-      50.0
+      iex> TAlib.Indicators.Stochastic.stochastic_k([1, 2, 5, 1, 4], 5)
+      75.0
 
       iex> TAlib.Indicators.Stochastic.stochastic_k([5, 5, 5], 3)
       nil
@@ -41,17 +42,39 @@ defmodule TAlib.Indicators.Stochastic do
 
   def stochastic_k(prices, period) when is_list(prices) and length(prices) < period, do: nil
 
-  def stochastic_k(prices, period) when is_list(prices) do
-    price_history = Enum.take(prices, period)
-    lowest_low = Enum.min(price_history)
-    highest_high = Enum.max(price_history)
-    range = highest_high - lowest_low
+  def stochastic_k(prices, period) when is_list(prices),
+    do: prices |> Enum.take(-period) |> k_over_window()
 
-    if range == 0 do
-      nil
-    else
-      (hd(price_history) - lowest_low) / range * 100
-    end
+  @doc """
+  Calculate the full %K series.
+
+  Returns a list aligned with `prices`: the first `period - 1` entries are
+  `nil`, and every later entry is %K of the window ending at that point.
+  Windows with no range (flat prices) produce `nil`, since %K is then
+  undefined.
+
+  ## Parameters
+
+    - prices: list of prices, oldest first.
+    - period: lookback window, a positive integer (default 14).
+
+  ## Examples
+
+      iex> TAlib.Indicators.Stochastic.stochastic_k_list([1, 6, 2, 5, 3], 3)
+      [nil, nil, 20.0, 75.0, 33.33333333333333]
+  """
+  @spec stochastic_k_list(list(number), pos_integer) :: list(float | nil)
+  def stochastic_k_list(prices, period \\ 14)
+
+  def stochastic_k_list(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def stochastic_k_list(prices, period) when is_list(prices) and length(prices) < period,
+    do: List.duplicate(nil, length(prices))
+
+  def stochastic_k_list(prices, period) when is_list(prices) do
+    k_values = prices |> Enum.chunk_every(period, 1, :discard) |> Enum.map(&k_over_window/1)
+    List.duplicate(nil, period - 1) ++ k_values
   end
 
   @doc """
@@ -59,13 +82,13 @@ defmodule TAlib.Indicators.Stochastic do
 
   ## Parameters
 
-    - prices: list of prices, newest first.
+    - prices: list of prices, oldest first.
     - period: %K lookback window, a positive integer (default 14).
     - d_period: SMA period applied to %K, a positive integer (default 3).
 
   ## Examples
 
-      iex> TAlib.Indicators.Stochastic.stochastic_d([4, 7, 3, 5, 2, 6, 1], 5, 3)
+      iex> TAlib.Indicators.Stochastic.stochastic_d([1, 6, 2, 5, 3, 7, 4], 5, 3)
       60.0
   """
   @spec stochastic_d(list(number), pos_integer, pos_integer) :: float | nil
@@ -82,15 +105,24 @@ defmodule TAlib.Indicators.Stochastic do
       do: nil
 
   def stochastic_d(prices, period, d_period) when is_list(prices) do
-    k_list =
-      Enum.map(0..(d_period - 1), fn x ->
-        stochastic_k(Enum.slice(prices, x, period), period)
-      end)
+    k_values = prices |> stochastic_k_list(period) |> Enum.take(-d_period)
 
-    if Enum.any?(k_list, &is_nil/1) do
+    if Enum.any?(k_values, &is_nil/1) do
       nil
     else
-      MA.sma(k_list, d_period)
+      MA.sma(k_values, d_period)
+    end
+  end
+
+  defp k_over_window(window) do
+    lowest_low = Enum.min(window)
+    highest_high = Enum.max(window)
+    range = highest_high - lowest_low
+
+    if range == 0 do
+      nil
+    else
+      (List.last(window) - lowest_low) / range * 100
     end
   end
 end

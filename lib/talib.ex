@@ -4,14 +4,11 @@ defmodule TAlib do
 
   ## Conventions
 
-  * Scalar indicator functions (`TAlib.Indicators.MA.sma/2`,
-    `TAlib.Indicators.RSI.rsi/2`, `TAlib.Indicators.MACD.macd/3`,
-    `TAlib.Indicators.Stochastic.stochastic_k/2`, ...) expect prices with
-    the **newest price first**.
-  * Series functions (`TAlib.Indicators.MA.sma_list/2`,
-    `TAlib.Indicators.MA.ema_list/2`, `TAlib.Indicators.RSI.rsi_list/3`)
-    expect prices in **chronological order, oldest price first** and return
-    a series aligned with the input list.
+  * Prices are always given in **chronological order, oldest price first**.
+    Series functions (`TAlib.Indicators.MA.sma_list/2`, `TAlib.Indicators.RSI.rsi_list/2`,
+    ...) return results aligned with the input list, `nil`-padded while the
+    lookback window fills up; scalar functions return the value at the
+    latest point.
   * Lookback periods must be positive integers; any other value raises
     `ArgumentError`.
   * Functions return `nil` — never `0` — when there is not enough data,

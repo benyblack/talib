@@ -5,6 +5,35 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-12
+
+### Changed
+
+- **Breaking:** every function now takes prices in **chronological order,
+  oldest price first**. Previously the scalar functions (`sma/2`, `ema/2`,
+  `wma/2`, `rsi/2`, `macd/3`, `stochastic_k/2`, the `update_*` helpers and
+  friends) expected the newest price first while the `*_list` functions
+  expected oldest first — two contradictory conventions in one library.
+  Pass your series the way you store it; series-function results are
+  unchanged.
+- **Breaking:** `RSI.rsi_list/2` no longer takes the `top_is_first` flag
+  (meaningless under a single convention); `rsi_list(data, period, true)`
+  becomes `rsi_list(data, period)`.
+- All series functions are now single-pass O(n) implementations: sliding
+  window sums for SMA/WMA/RSI and one forward EMA walk for the EMA series.
+  The MACD line, signal and histogram share a single fast/slow EMA pass.
+  Values match earlier releases up to floating-point rounding introduced
+  by the sliding arithmetic.
+
+### Added
+
+- `MA.wma_list/2` and `MA.cma_list/1`, giving the series functions parity
+  with the scalars.
+- `MACD.macd_list/3` (full MACD line series) and `MACD.macd_all/4`, which
+  returns `%{macd:, signal:, histogram:}` for the latest point computed in
+  a single pass, with per-value `nil`s while data accumulates.
+- `Stochastic.stochastic_k_list/2` (full %K series; %D is derived from it).
+
 ## [0.4.0] - 2026-10-10
 
 ### Added
