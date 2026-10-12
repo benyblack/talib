@@ -5,6 +5,40 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-10-12
+
+### Added
+
+Thirteen new indicators, all following the library conventions (chronological
+input, nil-padded series, `nil` — never `0` — for insufficient data, positive
+integer periods). Bar-based indicators take maps (`%{high: , low: , close: }`
+plus `%{volume: }` where needed); extra keys are ignored.
+
+- `MA.rma/2` and `MA.rma_list/2`: Wilder's smoothed average, the shared
+  building block for ATR and ADX
+- `StdDev`: rolling population standard deviation (`std_dev/2`, `std_dev_list/2`)
+- `BBands`: Bollinger Bands (`bbands/3`, `bbands_list/3`)
+- `ROC`: rate of change (`roc/2`, `roc_list/2`)
+- `Momentum`: momentum (`momentum/2`, `momentum_list/2`)
+- `WilliamsR`: Williams %R (`williams_r/2`, `williams_r_list/2`)
+- `TRIX`: triple-smoothed EMA rate of change (`trix/2`, `trix_list/2`)
+- `ATR`: Average True Range, Wilder-smoothed (`atr/2`, `atr_list/2`)
+- `Keltner`: Keltner Channels, EMA ± mult·ATR (`keltner/3`, `keltner_list/3`)
+- `Donchian`: Donchian Channels (`donchian/2`, `donchian_list/2`)
+- `ADX`: directional movement — `plus_di/2`, `minus_di/2`, `adx/2` and the
+  one-pass `adx_all/2` map, with per-value `nil`s while data accumulates
+- `CCI`: Commodity Channel Index (`cci/2`, `cci_list/2`)
+- `OBV`: On-Balance Volume (`obv/1`, `obv_list/1`)
+- `MFI`: Money Flow Index (`mfi/2`, `mfi_list/2`)
+- `VWAP`: rolling volume-weighted average price (`vwap/2`, `vwap_list/2`) —
+  the windowed variant, not the session-anchored one
+
+### Notes
+
+- Expected values for the new indicators were cross-verified against an
+  independent reference implementation; the ATR/ADX smoothing follows the
+  standard TA-Lib convention (RMA seeded with an SMA).
+
 ## [0.5.0] - 2026-10-12
 
 ### Changed
