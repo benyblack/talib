@@ -7,7 +7,7 @@ library returns `nil` — never `0` — for insufficient data or undefined
 values, validates periods with `ArgumentError`, and takes prices/bars
 in chronological order (oldest first) with nil-padded series.
 
-## Overlap Studies — 13/17
+## Overlap Studies — 15/17
 
 | TA-Lib | TAlib | Notes |
 | --- | --- | --- |
@@ -16,20 +16,20 @@ in chronological order (oldest first) with nil-padded series.
 | EMA | `MA.ema/ema_list` | |
 | HT_TRENDLINE | — | Hilbert transform, pending |
 | KAMA | `MA.kama/kama_list` | |
-| MA | — | generic MA-type dispatcher, pending |
-| MAMA | — | pending |
-| MAVP | — | variable-period MA, pending |
+| MA | `MA.ma/3` | dispatcher over sma/ema/wma/dema/tema/trima/kama/t3 |
+| MAMA | — | pending (needs the Hilbert machinery) |
+| MAVP | `MA.mavp/5` | sma/ema types, clamped periods |
 | MIDPOINT | `MA.midpoint/midpoint_list` | |
 | MIDPRICE | `Donchian.midprice` | |
 | SAR | `SAR.sar/sar_list` | af_start/step/max configurable |
-| SAREXT | — | SAR covers the common case; extended pending |
+| SAREXT | `SAR.sar_ext/4` | start/step/max acceleration configurable |
 | SMA | `MA.sma/sma_list` | |
 | T3 | `MA.t3/t3_list` | vfactor configurable |
 | TEMA | `MA.tema/tema_list` | |
 | TRIMA | `MA.trima/trima_list` | |
 | WMA | `MA.wma/wma_list` | |
 
-## Momentum Indicators — 29/31
+## Momentum Indicators — 31/31
 
 | TA-Lib | TAlib | Notes |
 | --- | --- | --- |
@@ -43,8 +43,8 @@ in chronological order (oldest first) with nil-padded series.
 | CMO | `CMO.cmo/cmo_list` | |
 | DX | `ADX.dx` | |
 | MACD | `MACD.macd/macd_list/macd_all` | |
-| MACDEXT | — | configurable MA types, pending |
-| MACDFIX | — | pending |
+| MACDEXT | `MACD.macd_ext/5` | any MA type for line and signal |
+| MACDFIX | `MACD.macd_fix/4` | signal EMA over the whole MACD series |
 | MFI | `MFI.mfi/mfi_list` | |
 | MINUS_DI | `ADX.minus_di` | |
 | MINUS_DM | `ADX.minus_dm` | raw per-bar series |
@@ -108,12 +108,16 @@ in chronological order (oldest first) with nil-padded series.
 HT_DCPERIOD, HT_DCPHASE, HT_PHASOR, HT_SINE and HT_TRENDMODE (Hilbert
 transforms) are pending.
 
-## Pattern Recognition — 0/61
+## Pattern Recognition — 61/61
 
-The 61 candlestick patterns (CDL*) are pending; they need bar input
-with `:open` and return a per-bar pattern score.
+All 61 candlestick patterns (CDL*) live in `TAlib.Indicators.CDL` —
+each takes OHLC bars and returns a per-bar score (`100` bullish,
+`-100` bearish, `0` none). The logic follows the canonical TA-Lib/
+StockCharts definitions with a configurable average-body window
+(default 5); hikkake returns base setups only (TA-Lib's confirmed ±200
+levels pending).
 
-**Summary: 61 of 133 functions.** Everything outside candlestick
-patterns, Hilbert-transform cycle indicators and seven MA-type-generic
-variants (MA, MAMA, MAVP, HT_TRENDLINE, SAREXT, MACDEXT, MACDFIX) is
-covered.
+**Summary: 126 of 133 functions.** The remaining seven are the
+Hilbert-transform family — HT_TRENDLINE, HT_DCPERIOD, HT_DCPHASE,
+HT_PHASOR, HT_SINE, HT_TRENDMODE — and MAMA, which all share the MESA
+machinery and need a faithful translation from the TA-Lib C source.

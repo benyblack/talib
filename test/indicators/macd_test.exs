@@ -175,4 +175,21 @@ defmodule TAlib.Indicators.MACDTest do
     assert_raise ArgumentError, fn -> MACD.signal(@prices, 9, 12, 0) end
     assert_raise ArgumentError, fn -> MACD.histogram(@prices, 12, 26, 9.5) end
   end
+
+  test "macd_ext/5 and macd_fix/4" do
+    ext = MACD.macd_ext(@prices, 12, 26, 9, :ema)
+    assert abs(ext.macd - MACD.macd(@prices)) < 1.0e-9
+
+    sma_ext = MACD.macd_ext(@prices, 12, 26, 9, :sma)
+    assert sma_ext.macd |> is_number()
+    assert sma_ext.signal |> is_number()
+
+    assert_raise ArgumentError, ~r/unknown MA type/, fn ->
+      MACD.macd_ext(@prices, 12, 26, 9, :nope)
+    end
+
+    fix = MACD.macd_fix(@prices, 12, 26, 9)
+    assert fix.macd |> is_number()
+    assert fix.signal |> is_number()
+  end
 end

@@ -273,4 +273,13 @@ defmodule TAlib.Indicators.MATest do
     assert length(MA.dema_list(@prices, 14)) == length(@prices)
     assert Enum.count(MA.t3_list(@prices, 14), &is_nil/1) == 6 * (14 - 1)
   end
+
+  test "ma/3 dispatcher and mavp/5" do
+    assert MA.ma(@series, 3, :sma) == MA.sma(@series, 3)
+    assert MA.ma(@series, 3, :ema) == MA.ema(@series, 3)
+    assert_raise ArgumentError, ~r/unknown MA type/, fn -> MA.ma(@series, 3, :nope) end
+
+    assert MA.mavp([1, 2, 3, 4, 5, 6], [2, 2, 2, 2, 2, 2]) |> List.last() == 5.5
+    assert MA.mavp([1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6]) |> Enum.take(3) == [nil, 1.5, 2.0]
+  end
 end

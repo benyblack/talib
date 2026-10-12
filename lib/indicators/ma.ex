@@ -769,4 +769,63 @@ defmodule TAlib.Indicators.MA do
       new_numerator / denominator | acc
     ])
   end
+
+  @doc """
+  The generic moving average dispatcher (TA-Lib MA): computes the moving
+  average of the given `type` — one of `:sma`, `:ema`, `:wma`, `:dema`,
+  `:tema`, `:trima`, `:kama` or `:t3`.
+
+      iex> TAlib.Indicators.MA.ma([1, 2, 3, 4, 5, 6, 7, 8], 4, :ema) |> Float.round(4)
+      6.5
+  """
+  @spec ma(list(number), pos_integer, atom) :: float | nil
+  def ma(prices, period, type)
+
+  def ma(prices, period, :sma), do: sma(prices, period)
+  def ma(prices, period, :ema), do: ema(prices, period)
+  def ma(prices, period, :wma), do: wma(prices, period)
+  def ma(prices, period, :dema), do: dema(prices, period)
+  def ma(prices, period, :tema), do: tema(prices, period)
+  def ma(prices, period, :trima), do: trima(prices, period)
+  def ma(prices, period, :kama), do: kama(prices, period)
+  def ma(prices, period, :t3), do: t3(prices, period)
+
+  def ma(_prices, _period, type),
+    do: raise(ArgumentError, "unknown MA type #{inspect(type)}")
+
+  @doc """
+  The variable-period moving average (TA-Lib MAVP): the value at each
+  point uses the period given for that point, clamped to
+  `[min_period, max_period]` (both defaulting to 2 and 30). Only
+  `:sma` and `:ema` types are supported.
+
+      iex> TAlib.Indicators.MA.mavp([1, 2, 3, 4, 5, 6], [2, 2, 2, 2, 2, 2]) |> List.last()
+      5.5
+  """
+  @spec mavp(list(number), list(number), pos_integer, pos_integer, atom) ::
+          list(float | nil)
+  def mavp(prices, periods, min_period \\ 2, max_period \\ 30, type \\ :sma)
+
+  def mavp(prices, periods, min_period, max_period, type)
+      when is_list(prices) and is_list(periods) and is_valid_period(min_period) and
+             is_valid_period(max_period) do
+    clamped = Enum.map(periods, fn p -> p |> max(min_period) |> min(max_period) |> trunc() end)
+
+    prices
+    |> Enum.zip(clamped)
+    |> Enum.with_index()
+    |> Enum.map(fn {{_price, period}, index} ->
+      window = prices |> Enum.take(index + 1) |> Enum.take(-period)
+
+      if length(window) < period do
+        nil
+      else
+        case type do
+          :sma -> Enum.sum(window) / period
+          :ema -> ema(prices |> Enum.take(index + 1), period)
+          type -> raise(ArgumentError, "unknown MAVP type #{inspect(type)}")
+        end
+      end
+    end)
+  end
 end
