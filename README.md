@@ -4,8 +4,10 @@ Technical analysis library for Elixir.
 
 ## Indicators
 
-61 of the 133 [TA-Lib](https://github.com/ta-lib/ta-lib-python) functions are
-covered — see [PARITY.md](PARITY.md) for the function-by-function map.
+126 of the 133 [TA-Lib](https://github.com/ta-lib/ta-lib-python) functions are
+covered — see [PARITY.md](PARITY.md) for the function-by-function map. The
+remaining seven (the Hilbert-transform family and MAMA) share the MESA
+machinery and are pending.
 
 - Overlap studies: SMA, EMA, WMA, CMA, Wilder RMA, DEMA, TEMA, TRIMA, KAMA,
   T3, Midpoint, Midprice, Bollinger Bands, Keltner Channels, Donchian
@@ -18,6 +20,10 @@ covered — see [PARITY.md](PARITY.md) for the function-by-function map.
 - Volume: OBV, MFI, rolling VWAP, Chaikin A/D line and oscillator
 - Statistics: linear regression (value/slope/intercept/angle), Time Series
   Forecast, Beta, Correlation
+- Candlestick patterns: all 61 TA-Lib CDL functions via `TAlib.Indicators.CDL`,
+  scored per bar (+100 bullish / -100 bearish / 0 none)
+- Generic moving-average dispatch (`MA.ma/3`), variable-period MA (`mavp`),
+  `MACD.macd_ext/macd_fix`, extended Parabolic SAR
 
 Bar-based indicators take maps such as
 `%{open: o, high: h, low: l, close: c, volume: v}` with the keys they need —

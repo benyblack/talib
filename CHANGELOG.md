@@ -5,6 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-10-12
+
+### Added
+
+- **All 61 TA-Lib candlestick patterns** in `TAlib.Indicators.CDL`: per-bar
+  scores (+100 bullish / -100 bearish / 0 none) over OHLC bars, following
+  the canonical TA-Lib/StockCharts definitions with a configurable
+  average-body window (default 5). Every pattern's output is
+  cross-checked against an independent reference implementation on a
+  mixed fixture. `hikkake`/`hikkake_mod` return base setups only;
+  TA-Lib's confirmed ±200 levels are pending.
+- `MA.ma/3`: generic moving-average dispatcher over eight types
+  (`:sma`, `:ema`, `:wma`, `:dema`, `:tema`, `:trima`, `:kama`, `:t3`).
+- `MA.mavp/5`: variable-period moving average (sma/ema, clamped periods).
+- `MACD.macd_ext/5`: MACD with configurable MA types for the line and
+  signal; `MACD.macd_fix/4`: signal EMA over the whole MACD series.
+- `SAR.sar_ext/4`: extended Parabolic SAR.
+
+### Notes
+
+- `PARITY.md` now reports 126 of 133 TA-Lib functions; the remaining
+  seven (HT_TRENDLINE, the five cycle indicators and MAMA) share the
+  Hilbert-transform/MESA machinery and need a faithful translation from
+  the TA-Lib C source.
+
 ## [0.7.0] - 2026-10-12
 
 ### Added
