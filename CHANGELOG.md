@@ -5,6 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-10-12
+
+### Added
+
+TA-Lib parity push: 24 new functions and a function-by-function coverage
+map in `PARITY.md` (61 of 133 TA-Lib functions covered — everything
+outside candlestick patterns, Hilbert-transform cycle indicators and the
+MA-type-generic variants).
+
+- Overlap: `MA.dema`, `MA.tema`, `MA.trima`, `MA.kama`, `MA.t3`,
+  `MA.midpoint`, `Donchian.midprice`, and the `SAR` module (Parabolic SAR)
+- Momentum: `APO`, `PPO`, `Aroon` (up/down/oscillator), `BOP`, `CMO`,
+  `StochRSI`, `UltimateOsc`, `Stochastic.slow` (TA-Lib STOCH),
+  `ADX.dx`, `ADX.adxr`, `ADX.plus_dm`, `ADX.minus_dm`,
+  `ROC.rocp/rocr/rocr100`
+- Volume: `ChaikinAD.ad/adosc`
+- Volatility: `ATR.natr`, `ATR.true_range`
+- Statistics: `Stats` — variance, beta, correl, linear regression
+  (value/slope/intercept/angle), time series forecast
+- Price transforms: `PriceTransform.avgprice/medprice/typprice/wclprice`
+
+### Changed
+
+- **Breaking:** `RSI` now uses Wilder's smoothing (RMA seeded with an SMA),
+  matching TA-Lib; values differ from the previous Cutler-style averages.
+  `average_gain/2` and `average_loss/2` return the Wilder-smoothed averages
+  and `nil` (previously `0`) when there is not enough data.
+
 ## [0.6.0] - 2026-10-12
 
 ### Added
