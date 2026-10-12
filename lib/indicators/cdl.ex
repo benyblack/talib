@@ -74,7 +74,9 @@ defmodule TAlib.Indicators.CDL do
     do:
       score_list(bars, average_period, 3, fn [a, b, c] ->
         if white(a) and long(a) and black(b) and gap_up(b, a) and black(c) and
-             c.o >= minb(b) and c.o <= maxb(b) and c.c < b.c and c.c > a.c, do: -100, else: 0
+             c.o >= minb(b) and c.o <= maxb(b) and c.c < b.c and c.c > a.c,
+           do: -100,
+           else: 0
       end)
 
   @doc "Three Black Crows (bearish, 3 bars)."
@@ -84,7 +86,9 @@ defmodule TAlib.Indicators.CDL do
         if black(a) and black(b) and black(c) and
              (a.body + b.body + c.body) / 3 >= c.avg and
              b.c < a.c and c.c < b.c and
-             b.o <= a.o and b.o > a.c and c.o <= b.o and c.o > b.c, do: -100, else: 0
+             b.o <= a.o and b.o > a.c and c.o <= b.o and c.o > b.c,
+           do: -100,
+           else: 0
       end)
 
   @doc "Three Inside Up/Down (2 bars)."
@@ -144,7 +148,9 @@ defmodule TAlib.Indicators.CDL do
         if white(a) and white(b) and white(c) and
              (a.body + b.body + c.body) / 3 >= c.avg and
              b.o >= a.o and b.o <= a.c and c.o >= b.o and c.o <= b.c and
-             b.c > a.c and c.c > b.c, do: 100, else: 0
+             b.c > a.c and c.c > b.c,
+           do: 100,
+           else: 0
       end)
 
   @doc "Abandoned Baby (reversal, 3 bars, full gaps around a doji)."
@@ -171,7 +177,9 @@ defmodule TAlib.Indicators.CDL do
         if white(a) and white(b) and white(c) and
              b.o >= a.o and b.o <= a.c and c.o >= b.o and c.o <= b.c and
              b.c > a.c and c.c > b.c and
-             b.up >= b.avg * 0.3 and c.up >= c.avg * 0.3 and c.body < b.body, do: -100, else: 0
+             b.up >= b.avg * 0.3 and c.up >= c.avg * 0.3 and c.body < b.body,
+           do: -100,
+           else: 0
       end)
 
   @doc "Belt Hold (single bar opening at the extreme)."
@@ -213,7 +221,9 @@ defmodule TAlib.Indicators.CDL do
         if black(a) and long(a) and a.lo >= a.avg and
              black(b) and b.body <= b.avg * 0.33 and maxb(b) < a.l and
              black(c) and c.h < b.l and c.body <= c.avg * 0.33 and
-             black(d) and d.o >= minb(c) and d.o <= maxb(c) and d.c < c.l, do: -100, else: 0
+             black(d) and d.o >= minb(c) and d.o <= maxb(c) and d.c < c.l,
+           do: -100,
+           else: 0
       end)
 
   @doc "Counterattack (2 bars, closes at the prior open)."
@@ -234,7 +244,9 @@ defmodule TAlib.Indicators.CDL do
     do:
       score_list(bars, average_period, 2, fn [a, b] ->
         if white(a) and long(a) and black(b) and b.o >= a.c and
-             b.c < a.o + a.body * (1 - penetration) and b.c > a.o, do: -100, else: 0
+             b.c < a.o + a.body * (1 - penetration) and b.c > a.o,
+           do: -100,
+           else: 0
       end)
 
   @doc "Doji (body at 3% of the average)."
@@ -275,7 +287,9 @@ defmodule TAlib.Indicators.CDL do
     do:
       score_list(bars, average_period, 3, fn [a, b, c] ->
         if white(a) and long(a) and doji_b(b) and gap_up(b, a) and black(c) and
-             c.c < a.o + a.body * (1 - penetration), do: -100, else: 0
+             c.c < a.o + a.body * (1 - penetration),
+           do: -100,
+           else: 0
       end)
 
   @doc "Evening Star (bearish, 3 bars)."
@@ -283,7 +297,9 @@ defmodule TAlib.Indicators.CDL do
     do:
       score_list(bars, average_period, 3, fn [a, b, c] ->
         if white(a) and long(a) and small(b) and gap_up(b, a) and black(c) and
-             c.c < a.o + a.body * (1 - penetration), do: -100, else: 0
+             c.c < a.o + a.body * (1 - penetration),
+           do: -100,
+           else: 0
       end)
 
   @doc "Up/Downside Gap Side-by-Side White Lines (2 bars)."
@@ -366,7 +382,9 @@ defmodule TAlib.Indicators.CDL do
       score_list(bars, average_period, 3, fn [a, b, c] ->
         if black(a) and black(b) and black(c) and
              near(b.o, a.c, a.avg * 0.1) and near(c.o, b.c, b.avg * 0.1) and
-             b.c < a.c and c.c < b.c, do: -100, else: 0
+             b.c < a.c and c.c < b.c,
+           do: -100,
+           else: 0
       end)
 
   @doc "In-Neck Pattern (bearish continuation, 2 bars)."
@@ -374,7 +392,9 @@ defmodule TAlib.Indicators.CDL do
     do:
       score_list(bars, average_period, 2, fn [a, b] ->
         if black(a) and long(a) and white(b) and b.o < a.l and
-             b.c <= a.c and b.c > a.c - a.avg * 0.05, do: -100, else: 0
+             b.c <= a.c and b.c > a.c - a.avg * 0.05,
+           do: -100,
+           else: 0
       end)
 
   @doc "Inverted Hammer (upper shadow at least twice the body)."
@@ -423,7 +443,9 @@ defmodule TAlib.Indicators.CDL do
       score_list(bars, average_period, 5, fn [a, b, c, d, e] ->
         if black(a) and black(b) and black(c) and b.o < a.l and c.o < b.l and
              black(d) and small(d) and d.o > c.c and
-             white(e) and e.c > d.h, do: 100, else: 0
+             white(e) and e.c > d.h,
+           do: 100,
+           else: 0
       end)
 
   @doc "Long Legged Doji (doji with long shadows on both sides)."
@@ -460,7 +482,9 @@ defmodule TAlib.Indicators.CDL do
       score_list(bars, average_period, 5, fn [a, b, c, d, e] ->
         if white(a) and long(a) and gap_up(b, a) and b.body <= b.avg * 0.667 and
              c.body <= c.avg * 0.667 and d.body <= d.avg * 0.667 and
-             c.l > a.c and d.l > a.c and white(e) and e.c > b.h, do: 100, else: 0
+             c.l > a.c and d.l > a.c and white(e) and e.c > b.h,
+           do: 100,
+           else: 0
       end)
 
   @doc "Morning Doji Star (bullish, 3 bars)."
@@ -468,7 +492,9 @@ defmodule TAlib.Indicators.CDL do
     do:
       score_list(bars, average_period, 3, fn [a, b, c] ->
         if black(a) and long(a) and doji_b(b) and gap_down(b, a) and white(c) and
-             c.c > a.c + a.body * penetration, do: 100, else: 0
+             c.c > a.c + a.body * penetration,
+           do: 100,
+           else: 0
       end)
 
   @doc "Morning Star (bullish, 3 bars)."
@@ -476,7 +502,9 @@ defmodule TAlib.Indicators.CDL do
     do:
       score_list(bars, average_period, 3, fn [a, b, c] ->
         if black(a) and long(a) and small(b) and gap_down(b, a) and white(c) and
-             c.c > a.c + a.body * penetration, do: 100, else: 0
+             c.c > a.c + a.body * penetration,
+           do: 100,
+           else: 0
       end)
 
   @doc "On-Neck Pattern (bearish, 2 bars closing at the prior low)."
@@ -493,7 +521,9 @@ defmodule TAlib.Indicators.CDL do
     do:
       score_list(bars, average_period, 2, fn [a, b] ->
         if black(a) and long(a) and white(b) and b.o < a.l and
-             b.c > a.c + a.body * penetration and b.c < a.o, do: 100, else: 0
+             b.c > a.c + a.body * penetration and b.c < a.o,
+           do: 100,
+           else: 0
       end)
 
   @doc "Rickshaw Man (doji with a long range centered on the body)."
@@ -561,7 +591,9 @@ defmodule TAlib.Indicators.CDL do
     do:
       score_list(bars, average_period, 3, fn [a, b, c] ->
         if white(a) and white(b) and b.c > a.c and long(b) and
-             white(c) and small(c) and c.up >= c.avg and c.c > b.c, do: -100, else: 0
+             white(c) and small(c) and c.up >= c.avg and c.c > b.c,
+           do: -100,
+           else: 0
       end)
 
   @doc "Stick Sandwich (bullish, 3 bars with matching outer closes)."
@@ -604,7 +636,9 @@ defmodule TAlib.Indicators.CDL do
     do:
       score_list(bars, average_period, 2, fn [a, b] ->
         if black(a) and long(a) and white(b) and b.o < a.l and
-             b.c > a.c and b.c < (a.o + a.c) / 2, do: -100, else: 0
+             b.c > a.c and b.c < (a.o + a.c) / 2,
+           do: -100,
+           else: 0
       end)
 
   @doc "Tristar Pattern (three dojis)."
@@ -633,7 +667,9 @@ defmodule TAlib.Indicators.CDL do
     do:
       score_list(bars, average_period, 3, fn [a, b, c] ->
         if white(a) and long(a) and black(b) and gap_up(b, a) and black(c) and
-             minb(c) > maxb(a) and c.o > b.o and c.c < b.c, do: -100, else: 0
+             minb(c) > maxb(a) and c.o > b.o and c.c < b.c,
+           do: -100,
+           else: 0
       end)
 
   @doc "Upside/Downside Gap Three Methods (3 bars filling the gap)."
