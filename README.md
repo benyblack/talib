@@ -4,11 +4,15 @@ Technical analysis library for Elixir.
 
 ## Indicators
 
-- Moving averages: SMA, EMA, WMA and CMA — as scalars, as full series, plus
-  incremental `update_*` variants for streaming updates
-- RSI
-- MACD: line, signal and histogram — individually or via a one-pass `macd_all`
-- Stochastic oscillator: %K and %D
+- Moving averages: SMA, EMA, WMA, CMA and Wilder's RMA — as scalars, as full
+  series, plus incremental `update_*` variants for streaming updates
+- Momentum: RSI, MACD (line/signal/histogram), ROC, Momentum, TRIX, Stochastic
+  oscillator (%K, %D), Williams %R, CCI, ADX/DMI (+DI, -DI, ADX)
+- Volatility: StdDev, Bollinger Bands, ATR, Keltner Channels, Donchian Channels
+- Volume: OBV, MFI, rolling VWAP
+
+Bar-based indicators (ATR, ADX, CCI, Keltner, Donchian, MFI, OBV, VWAP) take
+maps such as `%{high: h, low: l, close: c, volume: v}` — extra keys are ignored.
 
 ## Installation
 
@@ -18,7 +22,7 @@ in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:talib, "~> 0.5"}
+    {:talib, "~> 0.6"}
   ]
 end
 ```

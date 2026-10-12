@@ -238,6 +238,16 @@ defmodule TAlib.Indicators.MATest do
     assert MA.ema(@series, 3) == List.last(MA.ema_list(@series, 3))
   end
 
+  test "rma/2 and rma_list/2 (Wilder smoothing)" do
+    assert MA.rma(@series, 50) == nil
+    assert Float.round(MA.rma(@prices, 14), 4) == 1288.0976
+
+    rmas = MA.rma_list(@prices, 14)
+    assert length(rmas) == length(@prices)
+    assert Enum.count(rmas, &is_nil/1) == 13
+    assert MA.rma(@prices, 14) == List.last(rmas)
+  end
+
   test "periods must be positive integers" do
     assert_raise ArgumentError, ~r/positive integer/, fn -> MA.sma(@series, 0) end
     assert_raise ArgumentError, fn -> MA.ema(@series, -3) end

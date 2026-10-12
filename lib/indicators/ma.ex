@@ -348,6 +348,75 @@ defmodule TAlib.Indicators.MA do
     current_ema + multiplier * (new_value - current_ema)
   end
 
+  @doc """
+  Calculate Wilder's smoothed Moving Average (RMA), used by ATR, ADX and
+  friends: seeded with the SMA of the oldest `period` prices, then
+  `rma = (prev * (period - 1) + price) / period`.
+
+  ## Parameters
+
+    - prices: list of prices, oldest first.
+    - period: lookback window, a positive integer.
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.rma([1, 2, 3, 4, 5], 3) |> Float.round(4)
+      3.4444
+  """
+  @spec rma(list(number), pos_integer) :: float | nil
+  def rma(prices, period \\ 50)
+
+  def rma(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def rma(prices, period) when is_list(prices) and length(prices) < period, do: nil
+
+  def rma(prices, period) when is_list(prices) do
+    seed = Enum.sum(Enum.take(prices, period)) / period
+
+    Enum.reduce(Enum.drop(prices, period), seed, fn price, acc ->
+      (acc * (period - 1) + price) / period
+    end)
+  end
+
+  @doc """
+  Calculate the full RMA series in a single forward pass.
+
+  Returns a list aligned with `prices`: the first `period - 1` entries are
+  `nil`, and every later entry is the Wilder-smoothed average as of that
+  point.
+
+  ## Parameters
+
+    - prices: list of prices, oldest first.
+    - period: lookback window, a positive integer.
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.rma_list([1, 2, 3, 4, 5], 3)
+      [nil, nil, 2.0, 2.6666666666666665, 3.444444444444444]
+  """
+  @spec rma_list(list(number), pos_integer) :: list(float | nil)
+  def rma_list(prices, period \\ 50)
+
+  def rma_list(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def rma_list(prices, period) when is_list(prices) and length(prices) < period,
+    do: List.duplicate(nil, length(prices))
+
+  def rma_list(prices, period) when is_list(prices) do
+    seed = Enum.sum(Enum.take(prices, period)) / period
+
+    {rmas, _last} =
+      Enum.reduce(Enum.drop(prices, period), {[seed], seed}, fn price, {acc, prev} ->
+        value = (prev * (period - 1) + price) / period
+        {[value | acc], value}
+      end)
+
+    List.duplicate(nil, period - 1) ++ Enum.reverse(rmas)
+  end
+
   # Sliding SMA: `older` and `ahead` walk the same list; at each step the
   # head of `older` leaves the window while the head of `ahead` enters it.
   defp slide_sma(_older, [], _sum, _period, acc), do: Enum.reverse(acc)
