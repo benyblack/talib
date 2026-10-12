@@ -417,6 +417,334 @@ defmodule TAlib.Indicators.MA do
     List.duplicate(nil, period - 1) ++ Enum.reverse(rmas)
   end
 
+  @doc """
+  Calculate the Double Exponential Moving Average: `2 * EMA - EMA(EMA)`.
+
+  ## Parameters
+
+    - prices: list of prices, oldest first.
+    - period: lookback window, a positive integer (default 30).
+
+  ## Examples
+
+      iex> TAlib.Indicators.MA.dema([1, 2, 3, 4, 5, 6, 7, 8], 2)
+      6.0
+  """
+  @spec dema(list(number), pos_integer) :: float | nil
+  def dema(prices, period \\ 30)
+
+  def dema(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def dema(prices, period) when is_list(prices) and length(prices) < 2 * period - 1,
+    do: nil
+
+  def dema(prices, period) when is_list(prices),
+    do: prices |> dema_series(period) |> List.last()
+
+  @doc """
+  Calculate the full DEMA series (`2 * EMA - EMA(EMA)`).
+
+      iex> TAlib.Indicators.MA.dema_list([1, 2, 3, 4, 5, 6, 7, 8], 2)
+      [nil, nil, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+  """
+  @spec dema_list(list(number), pos_integer) :: list(float | nil)
+  def dema_list(prices, period \\ 30)
+
+  def dema_list(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def dema_list(prices, period) when is_list(prices) and length(prices) < 2 * period - 1,
+    do: List.duplicate(nil, length(prices))
+
+  def dema_list(prices, period) when is_list(prices), do: dema_series(prices, period)
+
+  @doc """
+  Calculate the Triple Exponential Moving Average:
+  `3 * EMA - 3 * EMA(EMA) + EMA(EMA(EMA))`.
+
+      iex> TAlib.Indicators.MA.tema([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2) |> Float.round(4)
+      7.0
+  """
+  @spec tema(list(number), pos_integer) :: float | nil
+  def tema(prices, period \\ 30)
+
+  def tema(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def tema(prices, period) when is_list(prices) and length(prices) < 3 * period - 2,
+    do: nil
+
+  def tema(prices, period) when is_list(prices),
+    do: prices |> tema_series(period) |> List.last()
+
+  @doc """
+  Calculate the full TEMA series.
+
+      iex> TAlib.Indicators.MA.tema_list([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2)
+      [nil, nil, nil, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+  """
+  @spec tema_list(list(number), pos_integer) :: list(float | nil)
+  def tema_list(prices, period \\ 30)
+
+  def tema_list(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def tema_list(prices, period) when is_list(prices) and length(prices) < 3 * period - 2,
+    do: List.duplicate(nil, length(prices))
+
+  def tema_list(prices, period) when is_list(prices), do: tema_series(prices, period)
+
+  @doc """
+  Calculate the Triangular Moving Average: an SMA applied twice, over the
+  half (odd period) or half/half-plus-one (even period) windows.
+
+      iex> TAlib.Indicators.MA.trima([1, 2, 3, 4, 5, 6, 7], 5)
+      5.0
+  """
+  @spec trima(list(number), pos_integer) :: float | nil
+  def trima(prices, period \\ 30)
+
+  def trima(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def trima(prices, period) when is_list(prices) and length(prices) < period, do: nil
+
+  def trima(prices, period) when is_list(prices), do: List.last(trima_series(prices, period))
+
+  @doc """
+  Calculate the full TRIMA series.
+
+      iex> TAlib.Indicators.MA.trima_list([1, 2, 3, 4, 5, 6, 7], 5)
+      [nil, nil, nil, nil, 3.0, 4.0, 5.0]
+  """
+  @spec trima_list(list(number), pos_integer) :: list(float | nil)
+  def trima_list(prices, period \\ 30)
+
+  def trima_list(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def trima_list(prices, period) when is_list(prices) and length(prices) < period,
+    do: List.duplicate(nil, length(prices))
+
+  def trima_list(prices, period) when is_list(prices), do: trima_series(prices, period)
+
+  @doc """
+  Calculate Kaufman's Adaptive Moving Average: an exponential average
+  whose smoothing constant adapts to the efficiency ratio
+  (net change over path length) of the last `period` prices.
+
+      iex> TAlib.Indicators.MA.kama([1, 2, 3, 4, 5, 6, 7, 8], 2) |> Float.round(4)
+      6.8162
+  """
+  @spec kama(list(number), pos_integer) :: float | nil
+  def kama(prices, period \\ 30)
+
+  def kama(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def kama(prices, period) when is_list(prices) and length(prices) < period + 1, do: nil
+
+  def kama(prices, period) when is_list(prices), do: List.last(kama_series(prices, period))
+
+  @doc """
+  Calculate the full KAMA series.
+
+      iex> TAlib.Indicators.MA.kama_list([1, 2, 3, 4, 5, 6, 7, 8], 2) |> Enum.map(fn
+      ...>   nil -> nil
+      ...>   x -> Float.round(x * 1.0, 4)
+      ...> end)
+      [nil, nil, 3.0, 3.4444, 4.1358, 4.9643, 5.8691, 6.8162]
+  """
+  @spec kama_list(list(number), pos_integer) :: list(number | nil)
+  def kama_list(prices, period \\ 30)
+
+  def kama_list(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def kama_list(prices, period) when is_list(prices) and length(prices) < period + 1,
+    do: List.duplicate(nil, length(prices))
+
+  def kama_list(prices, period) when is_list(prices), do: kama_series(prices, period)
+
+  @doc """
+  Calculate Tim Tillson's T3 moving average: six chained EMAs combined
+  with the given volume factor.
+
+      iex> TAlib.Indicators.MA.t3(Enum.to_list(1..14), 2) |> Float.round(4)
+      8.45
+  """
+  @spec t3(list(number), pos_integer, number) :: float | nil
+  def t3(prices, period \\ 30, vfactor \\ 0.7)
+
+  def t3(_prices, period, _vfactor) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def t3(_prices, _period, vfactor) when not is_number(vfactor),
+    do: raise(ArgumentError, "vfactor must be a number, got: #{inspect(vfactor)}")
+
+  def t3(prices, period, _vfactor) when is_list(prices) and length(prices) < 6 * period - 5,
+    do: nil
+
+  def t3(prices, period, vfactor) when is_list(prices),
+    do: prices |> t3_series(period, vfactor) |> List.last()
+
+  @doc """
+  Calculate the full T3 series.
+
+      iex> TAlib.Indicators.MA.t3_list(Enum.to_list(1..14), 2) |> Enum.count(&is_nil/1)
+      6
+  """
+  @spec t3_list(list(number), pos_integer, number) :: list(float | nil)
+  def t3_list(prices, period \\ 30, vfactor \\ 0.7)
+
+  def t3_list(_prices, period, _vfactor) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def t3_list(_prices, _period, vfactor) when not is_number(vfactor),
+    do: raise(ArgumentError, "vfactor must be a number, got: #{inspect(vfactor)}")
+
+  def t3_list(prices, period, _vfactor) when is_list(prices) and length(prices) < 6 * period - 5,
+    do: List.duplicate(nil, length(prices))
+
+  def t3_list(prices, period, vfactor) when is_list(prices),
+    do: t3_series(prices, period, vfactor)
+
+  @doc """
+  Calculate the Midpoint of the `period` newest prices:
+  `(highest + lowest) / 2`.
+
+      iex> TAlib.Indicators.MA.midpoint([5, 3, 8, 2, 6], 3)
+      5.0
+  """
+  @spec midpoint(list(number), pos_integer) :: float | nil
+  def midpoint(prices, period \\ 14)
+
+  def midpoint(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def midpoint(prices, period) when is_list(prices) and length(prices) < period, do: nil
+
+  def midpoint(prices, period) when is_list(prices) do
+    window = Enum.take(prices, -period)
+    (Enum.max(window) + Enum.min(window)) / 2
+  end
+
+  @doc """
+  Calculate the full Midpoint series.
+
+      iex> TAlib.Indicators.MA.midpoint_list([5, 3, 8, 2, 6], 3)
+      [nil, nil, 5.5, 5.0, 5.0]
+  """
+  @spec midpoint_list(list(number), pos_integer) :: list(float | nil)
+  def midpoint_list(prices, period \\ 14)
+
+  def midpoint_list(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def midpoint_list(prices, period) when is_list(prices) and length(prices) < period,
+    do: List.duplicate(nil, length(prices))
+
+  def midpoint_list(prices, period) when is_list(prices) do
+    values =
+      prices
+      |> Enum.chunk_every(period, 1, :discard)
+      |> Enum.map(fn window -> (Enum.max(window) + Enum.min(window)) / 2 end)
+
+    List.duplicate(nil, period - 1) ++ values
+  end
+
+  defp dema_series(prices, period) do
+    e1 = prices |> ema_list(period) |> Enum.reject(&is_nil/1)
+    e2 = e1 |> ema_list(period) |> Enum.reject(&is_nil/1)
+
+    values = Enum.zip(e1, e2) |> Enum.map(fn {a, b} -> 2 * a - b end)
+    List.duplicate(nil, 2 * (period - 1)) ++ values
+  end
+
+  defp tema_series(prices, period) do
+    e1 = prices |> ema_list(period) |> Enum.reject(&is_nil/1)
+    e2 = e1 |> ema_list(period) |> Enum.reject(&is_nil/1)
+    e3 = e2 |> ema_list(period) |> Enum.reject(&is_nil/1)
+
+    values =
+      [e1, e2, e3]
+      |> Enum.zip()
+      |> Enum.map(fn {a, b, c} -> 3 * a - 3 * b + c end)
+
+    List.duplicate(nil, 3 * (period - 1)) ++ values
+  end
+
+  defp trima_series(prices, period) do
+    {first, second} =
+      if rem(period, 2) == 1 do
+        half = div(period + 1, 2)
+        {half, half}
+      else
+        {div(period, 2), div(period, 2) + 1}
+      end
+
+    values =
+      prices
+      |> sma_list(first)
+      |> Enum.reject(&is_nil/1)
+      |> sma_list(second)
+      |> Enum.reject(&is_nil/1)
+
+    List.duplicate(nil, period - 1) ++ values
+  end
+
+  defp t3_series(prices, period, vfactor) do
+    emas =
+      Enum.reduce(1..6, [prices], fn _i, [prev | _] = acc ->
+        [prev |> ema_list(period) |> Enum.reject(&is_nil/1) | acc]
+      end)
+      |> Enum.reverse()
+      |> Enum.drop(1)
+
+    c1 = -:math.pow(vfactor, 3)
+    c2 = 3 * vfactor * vfactor + 3 * :math.pow(vfactor, 3)
+    c3 = -6 * vfactor * vfactor - 3 * vfactor - 3 * :math.pow(vfactor, 3)
+    c4 = 1 + 3 * vfactor + :math.pow(vfactor, 3) + 3 * vfactor * vfactor
+
+    values =
+      emas
+      |> Enum.take(-4)
+      |> Enum.zip()
+      |> Enum.map(fn {a, b, c, d} -> c1 * d + c2 * c + c3 * b + c4 * a end)
+
+    List.duplicate(nil, length(prices) - length(values)) ++ values
+  end
+
+  defp kama_series(prices, period) do
+    {window, rest} = Enum.split(prices, period + 1)
+    seed = List.last(window)
+
+    {series, _} =
+      Enum.reduce(rest, {[seed], {window, seed}}, fn price, {acc, {win, prev}} ->
+        new_win = tl(win) ++ [price]
+        [oldest | _] = new_win
+
+        change = abs(price - oldest)
+
+        volatility =
+          new_win
+          |> Enum.chunk_every(2, 1, :discard)
+          |> Enum.reduce(0, fn [a, b], sum -> sum + abs(b - a) end)
+
+        efficiency = if volatility == 0, do: 0.0, else: change / volatility
+
+        fastest = 2 / 3
+        slowest = 2 / (period + 1)
+        sc = :math.pow(efficiency * (fastest - slowest) + slowest, 2)
+
+        value = prev + sc * (price - prev)
+        {[value | acc], {new_win, value}}
+      end)
+
+    List.duplicate(nil, period) ++ Enum.reverse(series)
+  end
+
   # Sliding SMA: `older` and `ahead` walk the same list; at each step the
   # head of `older` leaves the window while the head of `ahead` enters it.
   defp slide_sma(_older, [], _sum, _period, acc), do: Enum.reverse(acc)
