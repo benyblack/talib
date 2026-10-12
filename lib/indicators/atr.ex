@@ -87,4 +87,43 @@ defmodule TAlib.Indicators.ATR do
     tr = max(high - low, max(abs(high - prev_close), abs(low - prev_close)))
     true_range_walk(rest, close, [tr | acc])
   end
+
+  @doc """
+  The True Range of every bar: `max(high - low, |high - prev_close|,
+  |low - prev_close|)` (`high - low` for the first bar).
+
+      iex> bars = [
+      ...>   %{high: 12, low: 8, close: 10},
+      ...>   %{high: 11, low: 9, close: 10},
+      ...>   %{high: 13, low: 9, close: 12}
+      ...> ]
+      iex> TAlib.Indicators.ATR.true_range(bars)
+      [4, 2, 4]
+  """
+  @spec true_range(list(map)) :: list(number)
+  def true_range(bars) when is_list(bars), do: true_ranges(bars)
+
+  @doc """
+  The Normalized ATR: `ATR / close * 100`, in percent.
+
+      iex> bars = [
+      ...>   %{high: 12, low: 8, close: 10},
+      ...>   %{high: 11, low: 9, close: 10},
+      ...>   %{high: 13, low: 9, close: 12}
+      ...> ]
+      iex> TAlib.Indicators.ATR.natr(bars, 2) |> Float.round(4)
+      29.1667
+  """
+  @spec natr(list(map), pos_integer) :: float | nil
+  def natr(bars, period \\ 14)
+
+  def natr(_bars, period) when not is_valid_period(period), do: TAlib.invalid_period!(period)
+
+  def natr(bars, period) when is_list(bars) and length(bars) < period, do: nil
+
+  def natr(bars, period) when is_list(bars) do
+    close = List.last(bars).close
+
+    if close == 0, do: nil, else: atr(bars, period) / close * 100
+  end
 end

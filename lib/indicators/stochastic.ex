@@ -125,4 +125,50 @@ defmodule TAlib.Indicators.Stochastic do
       (List.last(window) - lowest_low) / range * 100
     end
   end
+
+  @doc """
+  The slow stochastic (TA-Lib STOCH): the slowed %K line is the SMA of the
+  fast %K over `slowing` bars, and %D is the SMA of the slowed %K.
+
+  ## Parameters
+
+    - prices: list of prices, oldest first.
+    - period: %K lookback window, a positive integer (default 14).
+    - slowing: SMA period applied to fast %K (default 3).
+    - d_period: SMA period applied to the slowed %K (default 3).
+
+  ## Examples
+
+      iex> prices = [1, 6, 2, 5, 3, 7, 4]
+      iex> %{k: k, d: d} = TAlib.Indicators.Stochastic.slow(prices, 3, 2, 2)
+      iex> {Float.round(k, 4), Float.round(d, 4)}
+      {62.5, 64.5833}
+  """
+  @spec slow(list(number), pos_integer, pos_integer, pos_integer) :: %{
+          k: float | nil,
+          d: float | nil
+        }
+  def slow(prices, period \\ 14, slowing \\ 3, d_period \\ 3)
+
+  def slow(_prices, period, _slowing, _d_period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def slow(_prices, _period, slowing, _d_period) when not is_valid_period(slowing),
+    do: TAlib.invalid_period!(slowing)
+
+  def slow(_prices, _period, _slowing, d_period) when not is_valid_period(d_period),
+    do: TAlib.invalid_period!(d_period)
+
+  def slow(prices, period, slowing, d_period)
+      when is_list(prices) and length(prices) < period + slowing + d_period - 2,
+      do: %{k: nil, d: nil}
+
+  def slow(prices, period, slowing, d_period) when is_list(prices) do
+    k_fast = stochastic_k_list(prices, period) |> Enum.reject(&is_nil/1)
+
+    k_slow = k_fast |> MA.sma_list(slowing) |> Enum.reject(&is_nil/1)
+    d_slow = k_slow |> MA.sma_list(d_period) |> Enum.reject(&is_nil/1)
+
+    %{k: List.last(k_slow), d: List.last(d_slow)}
+  end
 end

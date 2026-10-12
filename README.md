@@ -4,15 +4,24 @@ Technical analysis library for Elixir.
 
 ## Indicators
 
-- Moving averages: SMA, EMA, WMA, CMA and Wilder's RMA — as scalars, as full
-  series, plus incremental `update_*` variants for streaming updates
-- Momentum: RSI, MACD (line/signal/histogram), ROC, Momentum, TRIX, Stochastic
-  oscillator (%K, %D), Williams %R, CCI, ADX/DMI (+DI, -DI, ADX)
-- Volatility: StdDev, Bollinger Bands, ATR, Keltner Channels, Donchian Channels
-- Volume: OBV, MFI, rolling VWAP
+61 of the 133 [TA-Lib](https://github.com/ta-lib/ta-lib-python) functions are
+covered — see [PARITY.md](PARITY.md) for the function-by-function map.
 
-Bar-based indicators (ATR, ADX, CCI, Keltner, Donchian, MFI, OBV, VWAP) take
-maps such as `%{high: h, low: l, close: c, volume: v}` — extra keys are ignored.
+- Overlap studies: SMA, EMA, WMA, CMA, Wilder RMA, DEMA, TEMA, TRIMA, KAMA,
+  T3, Midpoint, Midprice, Bollinger Bands, Keltner Channels, Donchian
+  Channels, Parabolic SAR — scalars and full series, plus incremental
+  `update_*` variants for streaming updates
+- Momentum: RSI (Wilder), MACD, Stochastic (fast and slow), Stochastic RSI,
+  Williams %R, ROC/ROCP/ROCR/ROCR100, Momentum, TRIX, CMO, APO, PPO, Aroon,
+  Aroon Oscillator, BOP, CCI, ADX/DMI (+DI, -DI, DX, ADXR)
+- Volatility: StdDev, Variance, ATR, NATR, True Range
+- Volume: OBV, MFI, rolling VWAP, Chaikin A/D line and oscillator
+- Statistics: linear regression (value/slope/intercept/angle), Time Series
+  Forecast, Beta, Correlation
+
+Bar-based indicators take maps such as
+`%{open: o, high: h, low: l, close: c, volume: v}` with the keys they need —
+extra keys are ignored.
 
 ## Installation
 
@@ -22,7 +31,7 @@ in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:talib, "~> 0.6"}
+    {:talib, "~> 0.7"}
   ]
 end
 ```
