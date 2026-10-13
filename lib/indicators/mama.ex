@@ -56,14 +56,15 @@ defmodule TAlib.Indicators.MAMA do
     {_tuple, stream} = HT.core_stream(prices, 12)
 
     {values, _acc} =
-      HT.scan(stream, %{prev_phase: 0.0, mama: 0.0, fama: 0.0}, 32, fn bar, acc ->
-        {alpha, prev_phase} = adaptive_alpha(bar, acc.prev_phase, fast_limit, slow_limit)
+      HT.scan(stream, {0.0, 0.0, 0.0}, 32, fn bar, {prev_phase, mama, fama} ->
+        {q1, i1_prev3} = HT.bar_q1_i1(bar)
+        {alpha, phase} = adaptive_alpha(q1, i1_prev3, prev_phase, fast_limit, slow_limit)
 
-        mama = (1 - alpha) * acc.mama + alpha * bar.price
+        mama = (1 - alpha) * mama + alpha * HT.bar_price(bar)
         half = alpha * 0.5
-        fama = (1 - half) * acc.fama + half * mama
+        fama = (1 - half) * fama + half * mama
 
-        {{mama, fama}, %{acc | prev_phase: prev_phase, mama: mama, fama: fama}}
+        {{mama, fama}, {phase, mama, fama}}
       end)
 
     values
@@ -71,10 +72,10 @@ defmodule TAlib.Indicators.MAMA do
     |> then(&unzip(&1, :mama, :fama))
   end
 
-  defp adaptive_alpha(bar, prev_phase, fast_limit, slow_limit) do
+  defp adaptive_alpha(q1, i1_prev3, prev_phase, fast_limit, slow_limit) do
     phase =
-      if bar.i1_prev3 != 0.0,
-        do: :math.atan(bar.q1 / bar.i1_prev3) * (45 / :math.atan(1)),
+      if i1_prev3 != 0.0,
+        do: :math.atan(q1 / i1_prev3) * (45 / :math.atan(1)),
         else: 0.0
 
     delta = prev_phase - phase
