@@ -22,35 +22,60 @@ defmodule TAlib.Indicators.CDL do
   # Per-bar candle context: body/shadow sizes plus the trailing average
   # body (partial while warming up, as in TA-Lib).
   defp context(bars, average_period) do
-    bodies = Enum.map(bars, fn bar -> abs(bar.close - bar.open) end)
+    ctx =
+      Enum.map(bars, fn bar ->
+        %{
+          o: bar.open,
+          h: bar.high,
+          l: bar.low,
+          c: bar.close,
+          body: abs(bar.close - bar.open),
+          up: bar.high - max(bar.open, bar.close),
+          lo: min(bar.open, bar.close) - bar.low
+        }
+      end)
 
-    bars
-    |> Enum.with_index()
-    |> Enum.map(fn {bar, index} ->
-      count = min(index + 1, average_period)
-      avg = Enum.sum(Enum.slice(bodies, index - count + 1, count)) / count
+    avgs = sliding_body_averages(ctx, average_period)
 
-      %{
-        o: bar.open,
-        h: bar.high,
-        l: bar.low,
-        c: bar.close,
-        body: abs(bar.close - bar.open),
-        up: bar.high - max(bar.open, bar.close),
-        lo: min(bar.open, bar.close) - bar.low,
-        avg: avg
-      }
-    end)
+    ctx
+    |> Enum.zip(avgs)
+    |> Enum.map(fn {bar, avg} -> Map.put(bar, :avg, avg) end)
+  end
+
+  # Trailing average body in one pass, partial while warming up (as in
+  # TA-Lib). `older` walks the same list to hand back the leaving body.
+  defp sliding_body_averages([], _average_period), do: []
+
+  defp sliding_body_averages([first | _] = ctx, average_period) do
+    walk_body_averages(tl(ctx), ctx, 1, first.body, average_period, [first.body])
+  end
+
+  defp walk_body_averages([], _older, _count, _sum, _average_period, acc),
+    do: Enum.reverse(acc)
+
+  defp walk_body_averages([%{body: body} | rest], older, count, sum, average_period, acc) do
+    sum = sum + body
+    count = count + 1
+
+    {sum, count, older} =
+      if count > average_period do
+        [%{body: leaving} | remaining] = older
+        {sum - leaving, count - 1, remaining}
+      else
+        {sum, count, older}
+      end
+
+    walk_body_averages(rest, older, count, sum, average_period, [sum / count | acc])
   end
 
   defp score_list(bars, average_period, window, fun) when is_valid_period(average_period) do
     ctx = context(bars, average_period)
 
-    ctx
-    |> Enum.with_index()
-    |> Enum.map(fn {_bar, index} ->
-      if index < window - 1, do: 0, else: fun.(Enum.slice(ctx, index - window + 1, window))
-    end)
+    # Windowed in one pass: chunk_every walks the list once instead of
+    # re-slicing from a growing offset (which is quadratic).
+    windows = Enum.chunk_every(ctx, window, 1, :discard)
+
+    List.duplicate(0, window - 1) ++ Enum.map(windows, fun)
   end
 
   defp score_list(_bars, average_period, _window, _fun), do: TAlib.invalid_period!(average_period)
