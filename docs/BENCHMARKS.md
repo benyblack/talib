@@ -73,6 +73,39 @@ Takeaways:
   At typical interactive sizes (hundreds to a few thousand bars), every
   function returns in single-digit milliseconds.
 
+## Concurrency: the many-symbol panel
+
+The single-function table is one call at a time, which hides the
+BEAM's strength: many independent computations at once. The panel
+benchmark (`bench/bench_panel.exs` and `bench/bench_panel.py`)
+computes an 8-indicator set (SMA, EMA, RSI, MACDFIX, Bollinger, ATR,
+HT trendline, MAMA) over N independent 100k-point series — a "scan
+many symbols" workload — sequentially and concurrently, on both
+sides of the same 6-core Docker VM (median of 3 runs):
+
+| Runtime | Sequential | Concurrent | Speedup |
+| --- | ---: | ---: | ---: |
+| TAlib, 16 symbols | 11.7 s | 1.93 s (6 `Task.async_stream` workers) | 6.1x |
+| TAlib, 64 symbols | 49.1 s | 8.75 s (6 workers) | 5.6x |
+| TA-Lib via Python, 16 symbols | 408 ms | 269 ms (6 threads) | 1.5x |
+| TA-Lib via Python, 16 symbols | 408 ms | 82.5 ms (6 processes) | 5.0x |
+
+Honest reading:
+
+- The BEAM scales the panel cleanly — slightly superlinearly at 16
+  symbols (per-process garbage collection spreads across schedulers)
+  and sustained at 64 — via a one-line change (`Task.async_stream`)
+  with no process pool to manage and no IPC.
+- Python threads barely move the needle (the GIL holds the C calls
+  back); Python processes scale, at the cost of a pool plus pickling
+  discipline (this panel keeps IPC small by rebuilding each series
+  from its seed in the worker).
+- The C library's per-computation speed still wins absolute wall
+  time: 82.5 ms beats 1.93 s. Concurrency narrows the gap that pure
+  CPU cannot close; it disappears entirely on mixed workloads —
+  indicators interleaved with IO, timeouts and other traffic — which
+  is what the BEAM is actually for.
+
 ## Numerical agreement with TA-Lib
 
 Beyond timing, the same Docker setup verifies values against the real
