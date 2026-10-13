@@ -13,6 +13,10 @@ defmodule TAlib.Indicators.HT do
 
   @warmup 37
   @lookback 63
+  # The DCPERIOD/PHASOR (and MAMA) family warms the WMA with 12 bars
+  # and emits from bar 32, as in TA-Lib; the rest use 37/63.
+  @warmup_short 12
+  @lookback_short 32
   @a 0.0962
   @b 0.5769
   @rad2deg 45 / :math.atan(1)
@@ -51,16 +55,19 @@ defmodule TAlib.Indicators.HT do
   The Hilbert Transform - Dominant Cycle Period.
 
       iex> TAlib.Indicators.HT.ht_dcperiod(Enum.to_list(1..100)) |> List.last() |> Float.round(4)
-      45.9889
+      42.5223
   """
   @spec ht_dcperiod(list(number)) :: list(float | nil)
   def ht_dcperiod(prices) when is_list(prices) and length(prices) < 64,
     do: List.duplicate(nil, length(prices))
 
   def ht_dcperiod(prices) when is_list(prices) do
-    {_tuple, stream} = core_stream(prices)
-    {values, _acc} = scan(stream, :unused, fn bar, acc -> {bar.smooth_period, acc} end)
-    align(values)
+    {_tuple, stream} = core_stream(prices, @warmup_short)
+
+    {values, _acc} =
+      scan(stream, :unused, @lookback_short, fn bar, acc -> {bar.smooth_period, acc} end)
+
+    align(values, @warmup_short)
   end
 
   @doc """
@@ -69,7 +76,7 @@ defmodule TAlib.Indicators.HT do
 
       iex> values = TAlib.Indicators.HT.ht_phasor(Enum.to_list(1..100))
       iex> Float.round(List.last(values.quadrature), 4)
-      0.8434
+      -1.9195
   """
   @spec ht_phasor(list(number)) :: %{inphase: list(float | nil), quadrature: list(float | nil)}
   def ht_phasor(prices) when is_list(prices) and length(prices) < 64,
@@ -79,11 +86,15 @@ defmodule TAlib.Indicators.HT do
     }
 
   def ht_phasor(prices) when is_list(prices) do
-    {_tuple, stream} = core_stream(prices)
+    {_tuple, stream} = core_stream(prices, @warmup_short)
 
-    {values, _acc} = scan(stream, :unused, fn bar, acc -> {{bar.i1_prev3, bar.q1}, acc} end)
+    {values, _acc} =
+      scan(stream, :unused, @lookback_short, fn bar, acc ->
+        value = if bar.today >= @lookback_short, do: {bar.i1_prev3, bar.q1}, else: nil
+        {value, acc}
+      end)
 
-    values |> align() |> unzip_pair(:inphase, :quadrature)
+    values |> align(@warmup_short) |> unzip_pair(:inphase, :quadrature)
   end
 
   @doc """
@@ -231,19 +242,23 @@ defmodule TAlib.Indicators.HT do
     align(values)
   end
 
-  # The shared core: `{prices tuple, one bar map per index 37..n-1}`
-  # carrying every intermediate the per-indicator tails need.
+  # The shared core: `{prices tuple, one bar map per index (warmup+1)..n-1}`
+  # carrying every intermediate the per-indicator tails need. The warmup
+  # length selects the TA-Lib family: 37 bars for the 63-lookback
+  # indicators, 12 for the 32-lookback ones.
   @doc false
-  def core_stream(prices) do
+  def core_stream(prices, warmup) do
     tuple = List.to_tuple(prices)
 
     if tuple_size(tuple) < 64 do
       {tuple, []}
     else
-      state = warmup(tuple)
-      {tuple, do_stream(tuple, @warmup, tuple_size(tuple) - 1, state, [])}
+      state = warmup(tuple, warmup - 3)
+      {tuple, do_stream(tuple, warmup, tuple_size(tuple) - 1, state, [])}
     end
   end
+
+  def core_stream(prices), do: core_stream(prices, @warmup)
 
   defp do_stream(_tuple, today, last, _state, acc) when today > last, do: Enum.reverse(acc)
 
@@ -376,9 +391,9 @@ defmodule TAlib.Indicators.HT do
   defp advance_hilbert_idx(2), do: 0
   defp advance_hilbert_idx(idx), do: idx + 1
 
-  # The warmup: 3 unrolled + 34 rolled WMA steps starting at index 0,
-  # leaving `today` at 37.
-  defp warmup(tuple) do
+  # The warmup: 3 unrolled plus `extra` rolled WMA steps starting at
+  # index 0 (extra = 34 leaves `today` at 37; 9 leaves it at 12).
+  defp warmup(tuple, extra) do
     p0 = elem(tuple, 0)
     p1 = elem(tuple, 1)
     p2 = elem(tuple, 2)
@@ -387,9 +402,9 @@ defmodule TAlib.Indicators.HT do
     weighted_sum = p0 + p1 * 2 + p2 * 3
 
     {sub, sum, trailing, idx} =
-      Enum.reduce(0..33, {initial_sum, weighted_sum, 0.0, 0}, fn idx,
-                                                                 {sub, sum, trailing,
-                                                                  trailing_idx} ->
+      Enum.reduce(0..(extra - 1), {initial_sum, weighted_sum, 0.0, 0}, fn idx,
+                                                                          {sub, sum, trailing,
+                                                                           trailing_idx} ->
         value = elem(tuple, idx + 3)
         sub = sub + value - trailing
         sum = sum + value * 4.0
@@ -515,15 +530,19 @@ defmodule TAlib.Indicators.HT do
   # warms it up alongside the core); only the output is suppressed
   # before the 63-bar lookback.
   @doc false
-  def scan(stream, tail, step) do
+  def scan(stream, tail, lookback, step) do
     Enum.map_reduce(stream, tail, fn bar, acc ->
       {value, acc} = step.(bar, acc)
-      {if(bar.today >= @lookback, do: value, else: nil), acc}
+      {if(bar.today >= lookback, do: value, else: nil), acc}
     end)
   end
 
+  def scan(stream, tail, step), do: scan(stream, tail, @lookback, step)
+
   @doc false
-  def align(values), do: List.duplicate(nil, @warmup) ++ values
+  def align(values, warmup), do: List.duplicate(nil, warmup) ++ values
+
+  def align(values), do: align(values, @warmup)
 
   defp unzip_pair(aligned, first_key, second_key) do
     {firsts, seconds} =

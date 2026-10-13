@@ -112,21 +112,21 @@ defmodule TAlib.Indicators.MAMATest do
 
   test "verified last values on the ramp" do
     values = MAMA.mama(@ramp)
-    assert Float.round(List.last(values.mama), 4) == 98.1515
-    assert Float.round(List.last(values.fama), 4) == 92.4066
+    assert Float.round(List.last(values.mama), 4) == 95.7327
+    assert Float.round(List.last(values.fama), 4) == 90.7448
   end
 
   test "verified last values on the price fixture" do
     values = MAMA.mama(@prices)
-    assert Float.round(List.last(values.mama), 4) == 1320.4198
-    assert Float.round(List.last(values.fama), 4) == 1280.3027
+    assert Float.round(List.last(values.mama), 4) == 1321.3113
+    assert Float.round(List.last(values.fama), 4) == 1283.2815
   end
 
   test "series align with the input and nil-pad the warmup" do
     values = MAMA.mama(@prices)
     assert length(values.mama) == 100
-    assert Enum.count(values.mama, &is_nil/1) == 63
-    assert Enum.count(values.fama, &is_nil/1) == 63
+    assert Enum.count(values.mama, &is_nil/1) == 32
+    assert Enum.count(values.fama, &is_nil/1) == 32
   end
 
   test "insufficient history yields all nils" do

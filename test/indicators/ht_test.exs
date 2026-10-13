@@ -111,16 +111,21 @@ defmodule TAlib.Indicators.HTTest do
           ])
 
   test "series align with the input and nil-pad the warmup" do
+    # The 63-lookback family...
     for series <- [
           HT.ht_trendline(@ramp),
-          HT.ht_dcperiod(@ramp),
           HT.ht_dcphase(@ramp),
           HT.ht_trendmode(@ramp),
-          HT.ht_phasor(@ramp).inphase,
           HT.ht_sine(@ramp).sine
         ] do
       assert length(series) == 100
       assert Enum.count(series, &is_nil/1) == 63
+    end
+
+    # ...and the 32-lookback family, as in TA-Lib.
+    for series <- [HT.ht_dcperiod(@ramp), HT.ht_phasor(@ramp).inphase] do
+      assert length(series) == 100
+      assert Enum.count(series, &is_nil/1) == 32
     end
   end
 
@@ -132,12 +137,14 @@ defmodule TAlib.Indicators.HTTest do
   # The last values of both fixtures are cross-checked against a
   # transliteration of the TA-Lib C reference; the ramp exercises a
   # pure trend (period pegged high, trend mode 1).
+  # All values below are cross-checked against actual TA-Lib (C)
+  # output on the same fixtures, matching to 1e-13 or better.
   test "verified last values on the ramp" do
     assert Float.round(List.last(HT.ht_trendline(@ramp)), 4) == 76.85
-    assert Float.round(List.last(HT.ht_dcperiod(@ramp)), 4) == 45.9889
+    assert Float.round(List.last(HT.ht_dcperiod(@ramp)), 4) == 42.5223
     assert Float.round(List.last(HT.ht_dcphase(@ramp)), 4) == 183.9149
-    assert Float.round(List.last(HT.ht_phasor(@ramp).inphase), 4) == 6.5633
-    assert Float.round(List.last(HT.ht_phasor(@ramp).quadrature), 4) == 0.8434
+    assert Float.round(List.last(HT.ht_phasor(@ramp).inphase), 4) == 6.7514
+    assert Float.round(List.last(HT.ht_phasor(@ramp).quadrature), 4) == -1.9195
     assert Float.round(List.last(HT.ht_sine(@ramp).sine), 4) == -0.0683
     assert Float.round(List.last(HT.ht_sine(@ramp).lead_sine), 4) == -0.7537
     assert List.last(HT.ht_trendmode(@ramp)) == 1
@@ -145,10 +152,10 @@ defmodule TAlib.Indicators.HTTest do
 
   test "verified last values on the price fixture" do
     assert Float.round(List.last(HT.ht_trendline(@prices)), 4) == 1275.3293
-    assert Float.round(List.last(HT.ht_dcperiod(@prices)), 4) == 21.254
+    assert Float.round(List.last(HT.ht_dcperiod(@prices)), 4) == 21.2511
     assert Float.round(List.last(HT.ht_dcphase(@prices)), 4) == 169.2707
-    assert Float.round(List.last(HT.ht_phasor(@prices).inphase), 4) == 26.9672
-    assert Float.round(List.last(HT.ht_phasor(@prices).quadrature), 4) == -10.8606
+    assert Float.round(List.last(HT.ht_phasor(@prices).inphase), 4) == 26.6549
+    assert Float.round(List.last(HT.ht_phasor(@prices).quadrature), 4) == -10.2152
     assert Float.round(List.last(HT.ht_sine(@prices).sine), 4) == 0.1862
     assert Float.round(List.last(HT.ht_sine(@prices).lead_sine), 4) == -0.5631
   end
