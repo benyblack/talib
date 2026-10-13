@@ -79,3 +79,42 @@ iex> TAlib.Indicators.MACD.macd_all(prices)
 
 More examples can be found in the module documentation
 ([Hexdocs](https://hexdocs.pm/talib/)) and in the test suite.
+
+## Reflections
+
+This library slept from 2019 until late 2026, then went from a handful
+of indicators to full TA-Lib parity in a dozen releases. A few things
+the journey taught, in case they're useful:
+
+- **Translating reference code is not verifying it.** Every algorithm
+  here was rewritten from the TA-Lib C source — and translations that
+  "looked right" still shipped real bugs: DEMA combining its EMA
+  stages head-to-tail, KAMA with the wrong slow constant, candlestick
+  thresholds approximated from textbooks instead of the C settings
+  table. What caught them was not care but measurement: a value audit
+  comparing our output, bar for bar, against the real C library on
+  shared fixtures (`bench/audit_dump.exs`). That audit became the
+  project's most valuable file — it also caught bugs in our own
+  performance optimizations (an inverted deque comparison, an
+  off-by-one tuple layout) that every unit test happily passed.
+- **Exactness is a feature, not pedantry.** A 1e-3 drift is invisible
+  on a chart and very visible in a backtest: thresholds flip
+  candlestick patterns and seeding differences compound through
+  exponential averages. Every audited function is now bit-exact or
+  within 1e-12 of the C library, and all 61 candlestick patterns are
+  integer-exact — including the ±200/±80 score levels most
+  reimplementations skip.
+- **Immutable lists are slower than C arrays, predictably.** Single
+  functions run 25-100x the C time; that is the cost of walking
+  linked lists instead of mutating arrays. The remedy isn't magic but
+  the same algorithmic care C gets — sliding sums, monotonic deques,
+  single-pass walks. Nothing here is quadratic, and the concurrency
+  story is the BEAM's: one `Task.async_stream` scales a 16-symbol
+  panel 6.1x on 6 cores with zero plumbing, where Python needs a
+  process pool to escape its GIL. C wins any single computation;
+  Elixir wins the runtime around it — the feeds, the timeouts, the
+  supervision, the traffic around the numbers.
+
+The deliberate trade-offs: `nil` instead of `0` for missing data (0 is
+a legitimate reading), chronological inputs oldest-first, and no
+unstable-period machinery — outputs start where the math starts.
