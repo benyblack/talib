@@ -42,9 +42,9 @@ jobs = [
   {"StdDev.std_dev_list/2 (20)", fn -> StdDev.std_dev_list(prices, 20) end},
   {"ATR.atr_list/2 (14) [bars]", fn -> ATR.atr_list(bars, 14) end},
   {"OBV.obv_list/1 [bars]", fn -> OBV.obv_list(bars) end},
-  {"CDL.doji/2", fn -> CDL.doji(bars) end},
-  {"CDL.engulfing/2", fn -> CDL.engulfing(bars) end},
-  {"CDL.three_white_soldiers/2", fn -> CDL.three_white_soldiers(bars) end},
+  {"CDL.doji/1", fn -> CDL.doji(bars) end},
+  {"CDL.engulfing/1", fn -> CDL.engulfing(bars) end},
+  {"CDL.three_white_soldiers/1", fn -> CDL.three_white_soldiers(bars) end},
   {"HT.ht_trendline/1", fn -> HT.ht_trendline(prices) end},
   {"HT.ht_dcphase/1", fn -> HT.ht_dcphase(prices) end},
   {"MAMA.mama/3 (0.5,0.05)", fn -> MAMA.mama(prices, 0.5, 0.05) end}

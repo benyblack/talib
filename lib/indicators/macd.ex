@@ -32,7 +32,7 @@ defmodule TAlib.Indicators.MACD do
   ## Examples
 
       iex> TAlib.Indicators.MACD.macd([1, 4, 3, 5, 2, 6], 3, 2) |> Float.round(4)
-      -0.4614
+      0.4861
   """
   @spec macd(list(number), pos_integer, pos_integer) :: float | nil
   def macd(prices, fast \\ 12, slow \\ 26)
@@ -64,7 +64,7 @@ defmodule TAlib.Indicators.MACD do
   ## Examples
 
       iex> [1, 4, 3, 5, 2, 6] |> TAlib.Indicators.MACD.macd_list(3, 2) |> List.last() |> Float.round(4)
-      -0.4614
+      0.4861
   """
   @spec macd_list(list(number), pos_integer, pos_integer) :: list(float | nil)
   def macd_list(prices, fast \\ 12, slow \\ 26)
@@ -95,7 +95,7 @@ defmodule TAlib.Indicators.MACD do
   ## Examples
 
       iex> TAlib.Indicators.MACD.signal([5, 1, 6, 4, 7, 3, 8, 2, 9], 2, 3, 2) |> Float.round(4)
-      -0.3441
+      0.3372
   """
   @spec signal(list(number), pos_integer, pos_integer, pos_integer) :: float | nil
   def signal(prices, period \\ 9, fast \\ 12, slow \\ 26)
@@ -130,7 +130,7 @@ defmodule TAlib.Indicators.MACD do
   ## Examples
 
       iex> TAlib.Indicators.MACD.histogram([5, 1, 6, 4, 7, 3, 8, 2, 9], 3, 2, 2) |> Float.round(4)
-      -0.3112
+      0.316
   """
   @spec histogram(list(number), pos_integer, pos_integer, pos_integer) :: float | nil
   def histogram(prices, macd_fast \\ 12, macd_slow \\ 26, signal_period \\ 9)
@@ -170,7 +170,7 @@ defmodule TAlib.Indicators.MACD do
 
       iex> %{macd: m, signal: s, histogram: h} = TAlib.Indicators.MACD.macd_all([5, 1, 6, 4, 7, 3, 8, 2, 9], 3, 2, 2)
       iex> {Float.round(m, 4), Float.round(s, 4), Float.round(h, 4)}
-      {-0.6553, -0.3441, -0.3112}
+      {0.6532, 0.3372, 0.316}
   """
   @spec macd_all(list(number), pos_integer, pos_integer, pos_integer) :: %{
           macd: float | nil,
@@ -209,18 +209,35 @@ defmodule TAlib.Indicators.MACD do
     %{macd: macd_value, signal: signal_value, histogram: histogram_value}
   end
 
-  # One fast/slow EMA walk; the MACD line exists where both EMAs exist.
+  # One fast/slow EMA walk with TA-Lib's MACD seeding: the slow EMA is
+  # seeded with the average of the first `slow` prices and the fast EMA
+  # with the average of the last `fast` of those (both windows end at
+  # index slow-1), after which the two advance in lockstep. The line's
+  # early values therefore match TA-Lib's MACD bar for bar; from
+  # max(fast, slow) * 2 bars on, the seed has washed out and this equals
+  # EMA(fast) - EMA(slow).
   defp macd_series(prices, fast, slow) do
-    fast_series = MA.ema_list(prices, fast)
-    slow_series = MA.ema_list(prices, slow)
+    {fast, slow} = if fast <= slow, do: {fast, slow}, else: {slow, fast}
+    {prefix, rest} = Enum.split(prices, slow)
 
-    fast_series
-    |> Enum.zip(slow_series)
-    |> Enum.map(fn
-      {nil, _} -> nil
-      {_, nil} -> nil
-      {f, s} -> f - s
-    end)
+    if length(prices) < slow do
+      List.duplicate(nil, length(prices))
+    else
+      slow_seed = Enum.sum(prefix) / slow
+      fast_seed = (prefix |> Enum.take(-fast) |> Enum.sum()) / fast
+      fast_k = 2 / (fast + 1)
+      slow_k = 2 / (slow + 1)
+
+      {values, _} =
+        Enum.reduce(rest, {[fast_seed - slow_seed], {fast_seed, slow_seed}}, fn price,
+                                                                                {acc, {f, s}} ->
+          f = (price - f) * fast_k + f
+          s = (price - s) * slow_k + s
+          {[f - s | acc], {f, s}}
+        end)
+
+      List.duplicate(nil, slow - 1) ++ Enum.reverse(values)
+    end
   end
 
   # EMA over the last period*2 MACD values that satisfy the scalar MACD
@@ -247,17 +264,24 @@ defmodule TAlib.Indicators.MACD do
   def macd_ext(prices, fast \\ 12, slow \\ 26, signal_period \\ 9, type \\ :ema)
 
   def macd_ext(prices, fast, slow, signal_period, type) when is_list(prices) do
-    fast_series = ma_series_of_type(prices, fast, type)
-    slow_series = ma_series_of_type(prices, slow, type)
-
+    # TA-Lib's MACDEXT computes the EMA variant through the same seeded
+    # walk as the plain MACD, so :ema delegates to it; every other type
+    # takes the difference of its own series.
     macd_line =
-      fast_series
-      |> Enum.zip(slow_series)
-      |> Enum.map(fn
-        {nil, _} -> nil
-        {_, nil} -> nil
-        {f, s} -> f - s
-      end)
+      if type == :ema do
+        macd_series(prices, fast, slow)
+      else
+        fast_series = ma_series_of_type(prices, fast, type)
+        slow_series = ma_series_of_type(prices, slow, type)
+
+        fast_series
+        |> Enum.zip(slow_series)
+        |> Enum.map(fn
+          {nil, _} -> nil
+          {_, nil} -> nil
+          {f, s} -> f - s
+        end)
+      end
 
     signal_line = macd_line |> Enum.reject(&is_nil/1) |> ma_series_of_type(signal_period, type)
 
@@ -293,7 +317,7 @@ defmodule TAlib.Indicators.MACD do
   value (rather than a trailing window).
 
       iex> TAlib.Indicators.MACD.macd_fix([1, 4, 3, 5, 2, 6], 3, 2, 2) |> Map.get(:macd) |> Float.round(4)
-      -0.4614
+      0.4861
   """
   @spec macd_fix(list(number), pos_integer, pos_integer, pos_integer) ::
           %{macd: float | nil, signal: float | nil, histogram: float | nil}

@@ -263,11 +263,11 @@ defmodule TAlib.Indicators.MATest do
   end
 
   test "overlap additions: dema, tema, trima, kama, t3, midpoint" do
-    assert Float.round(MA.dema(@prices, 14), 4) == 1207.6279
-    assert Float.round(MA.tema(@prices, 14), 4) == 1292.6967
+    assert Float.round(MA.dema(@prices, 14), 4) == 1331.9805
+    assert Float.round(MA.tema(@prices, 14), 4) == 1345.4243
     assert Float.round(MA.trima(@prices, 14), 4) == 1300.0545
-    assert Float.round(MA.kama(@prices, 14), 4) == 1314.0551
-    assert Float.round(MA.t3(@prices, 14), 4) == 1359.9818
+    assert Float.round(MA.kama(@prices, 14), 4) == 1313.4113
+    assert Float.round(MA.t3(@prices, 14), 4) == 1279.787
     assert Float.round(MA.midpoint(@prices, 14), 4) == 1292.275
 
     assert length(MA.dema_list(@prices, 14)) == length(@prices)

@@ -123,10 +123,12 @@ machinery is not mirrored.
 
 All 61 candlestick patterns (CDL*) live in `TAlib.Indicators.CDL` —
 each takes OHLC bars and returns a per-bar score (`100` bullish,
-`-100` bearish, `0` none). The logic follows the canonical TA-Lib/
-StockCharts definitions with a configurable average-body window
-(default 5); hikkake returns base setups only (TA-Lib's confirmed ±200
-levels pending).
+`-100` bearish, `0` none). Every pattern is translated bar for bar
+from the TA-Lib C source, including its candle-settings table (10-bar
+body/high-low/shadow averages, 5-bar near/far/equal distances), the
+`±200` hikkake confirmation levels and the `±80` equal-touch levels of
+engulfing/harami — verified integer-exact against the real C library
+across multiple fixtures (see `docs/BENCHMARKS.md`).
 
 **Summary: 133 of 133 functions — full TA-Lib parity.**
 

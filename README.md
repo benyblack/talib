@@ -21,7 +21,9 @@ cross-verified series for series.
 - Statistics: linear regression (value/slope/intercept/angle), Time Series
   Forecast, Beta, Correlation
 - Candlestick patterns: all 61 TA-Lib CDL functions via `TAlib.Indicators.CDL`,
-  scored per bar (+100 bullish / -100 bearish / 0 none)
+  scored per bar (+100 bullish / -100 bearish / 0 none, with TA-Lib's
+  ±200 hikkake confirmations and ±80 equal-touch levels), verified
+  integer-exact against the C library
 - Generic moving-average dispatch (`MA.ma/3`), variable-period MA (`mavp`),
   `MACD.macd_ext/macd_fix`, extended Parabolic SAR
 - Cycle indicators: the full Hilbert-transform family (`HT.ht_trendline`,

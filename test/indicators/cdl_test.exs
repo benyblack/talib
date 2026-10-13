@@ -72,32 +72,61 @@ defmodule TAlib.Indicators.CDLTest do
   ]
 
   test "score conventions on hand-made bars" do
-    # Doji: open == close with a tiny body vs the average.
-    assert CDL.doji([
-             %{open: 10, high: 12, low: 8, close: 11},
-             %{open: 10.5, high: 12, low: 9, close: 10.5},
-             %{open: 11, high: 12, low: 10, close: 11.8}
-           ]) == [0, 100, 0]
+    # The candle settings judge each bar against the 10 bars before it,
+    # so the crafted patterns sit after full warmup windows.
+    warm = Enum.map(0..10, fn _ -> %{open: 100.0, high: 102.0, low: 99.0, close: 101.0} end)
 
-    # Hammer: lower shadow at least twice the body, small upper shadow.
-    hammer = %{open: 10, high: 10.3, low: 8, close: 10.3}
-    assert CDL.hammer([hammer]) == [100]
-    assert CDL.hanging_man([hammer]) == [-100]
+    doji = Enum.take(warm, 10)
+    doji_bar = %{open: 101.0, high: 102.0, low: 99.0, close: 101.01}
+    assert CDL.doji(doji ++ [doji_bar] ++ warm) |> Enum.take(10) |> Enum.all?(&(&1 == 0))
+    assert CDL.doji(doji ++ [doji_bar]) |> List.last() == 100
 
-    # Marubozu: no shadows at all.
-    assert CDL.marubozu([%{open: 10, high: 12, low: 10, close: 12}]) == [100]
+    hammer = %{open: 99.0, high: 99.6, low: 96.5, close: 99.5}
+    assert CDL.hammer(warm ++ [hammer]) |> List.last() == 100
 
-    # Engulfing: second body strictly engulfs the first, opposite color.
+    hanging_man = %{open: 102.5, high: 103.1, low: 100.0, close: 103.0}
+    assert CDL.hanging_man(warm ++ [hanging_man]) |> List.last() == -100
+
+    marubozu = %{open: 100.0, high: 103.05, low: 99.95, close: 103.0}
+    assert CDL.marubozu(Enum.take(warm, 10) ++ [marubozu]) |> List.last() == 100
+
+    # Engulfing evaluates from the third bar on (lookback 2).
+    lead = %{open: 10.0, high: 10.5, low: 9.5, close: 10.2}
+
     assert CDL.engulfing([
+             lead,
              %{open: 12.0, high: 12.5, low: 11.5, close: 11.8},
              %{open: 11.5, high: 13.0, low: 11.0, close: 12.9}
-           ]) == [0, 100]
+           ]) == [0, 0, 100]
 
-    # Bullish engulfing of a black candle.
     assert CDL.engulfing([
+             lead,
              %{open: 11, high: 11.2, low: 9.8, close: 10.0},
              %{open: 9.9, high: 12, low: 9.7, close: 11.9}
-           ]) == [0, 100]
+           ]) == [0, 0, 100]
+
+    # A body merely touching the prior close scores 80, not 100.
+    assert CDL.engulfing([
+             lead,
+             %{open: 10.0, high: 12.5, low: 9.5, close: 12.0},
+             %{open: 12.0, high: 12.1, low: 9.4, close: 9.5}
+           ]) == [0, 0, -80]
+  end
+
+  test "hikkake reports the +/-200 confirmation levels" do
+    bars = [
+      %{open: 1.0, high: 10.0, low: 0.0, close: 5.0},
+      %{open: 1.0, high: 9.0, low: 1.0, close: 5.0},
+      %{open: 1.0, high: 8.0, low: 0.5, close: 5.0},
+      %{open: 1.0, high: 8.5, low: 0.6, close: 5.0},
+      %{open: 1.0, high: 8.4, low: 0.7, close: 5.0},
+      %{open: 1.0, high: 8.6, low: 0.65, close: 8.0}
+    ]
+
+    assert CDL.hikkake(bars) == [0, 0, 0, 0, 0, 0]
+
+    confirmed = List.replace_at(bars, 5, %{open: 1.0, high: 8.6, low: 0.65, close: 9.5})
+    assert CDL.hikkake(confirmed) == [0, 0, 0, 0, 0, 200]
   end
 
   test "warmup bars of multi-bar patterns score zero" do
@@ -105,69 +134,65 @@ defmodule TAlib.Indicators.CDLTest do
     assert CDL.two_crows(bars) == [0, 0]
   end
 
-  test "average_period must be a positive integer" do
-    assert_raise ArgumentError, ~r/positive integer/, fn -> CDL.doji(@bars, 0) end
-  end
-
   test "matches the reference implementation on the mixed fixture" do
-    assert counts(CDL.abandoned_baby(@bars)) == %{0 => 60}
-    assert counts(CDL.advance_block(@bars)) == %{0 => 60}
-    assert counts(CDL.belt_hold(@bars)) == %{0 => 57, 100 => 3}
-    assert counts(CDL.breakaway(@bars)) == %{0 => 60}
-    assert counts(CDL.closing_marubozu(@bars)) == %{-100 => 2, 0 => 51, 100 => 7}
-    assert counts(CDL.conceal_babys_wall(@bars)) == %{0 => 60}
-    assert counts(CDL.counterattack(@bars)) == %{0 => 60}
-    assert counts(CDL.dark_cloud_cover(@bars)) == %{-100 => 1, 0 => 59}
-    assert counts(CDL.doji(@bars)) == %{0 => 48, 100 => 12}
-    assert counts(CDL.doji_star(@bars)) == %{0 => 60}
-    assert counts(CDL.dragonfly_doji(@bars)) == %{0 => 60}
-    assert counts(CDL.engulfing(@bars)) == %{0 => 60}
-    assert counts(CDL.evening_doji_star(@bars)) == %{0 => 60}
-    assert counts(CDL.evening_star(@bars)) == %{0 => 60}
-    assert counts(CDL.gap_side_side_white(@bars)) == %{0 => 57, 100 => 3}
-    assert counts(CDL.gravestone_doji(@bars)) == %{0 => 60}
-    assert counts(CDL.hammer(@bars)) == %{0 => 60}
-    assert counts(CDL.hanging_man(@bars)) == %{0 => 60}
-    assert counts(CDL.harami(@bars)) == %{-100 => 1, 0 => 59}
-    assert counts(CDL.harami_cross(@bars)) == %{-100 => 1, 0 => 59}
-    assert counts(CDL.high_wave(@bars)) == %{0 => 50, 100 => 10}
-    assert counts(CDL.hikkake(@bars)) == %{-100 => 1, 0 => 55, 100 => 4}
-    assert counts(CDL.hikkake_mod(@bars)) == %{-100 => 1, 0 => 55, 100 => 4}
-    assert counts(CDL.homing_pigeon(@bars)) == %{0 => 60}
-    assert counts(CDL.identical_3_crows(@bars)) == %{0 => 60}
-    assert counts(CDL.in_neck(@bars)) == %{0 => 60}
-    assert counts(CDL.inverted_hammer(@bars)) == %{0 => 59, 100 => 1}
-    assert counts(CDL.kicking(@bars)) == %{0 => 60}
-    assert counts(CDL.kicking_by_length(@bars)) == %{0 => 60}
-    assert counts(CDL.ladder_bottom(@bars)) == %{0 => 60}
-    assert counts(CDL.long_legged_doji(@bars)) == %{0 => 49, 100 => 11}
-    assert counts(CDL.long_line(@bars)) == %{-100 => 3, 0 => 41, 100 => 16}
-    assert counts(CDL.marubozu(@bars)) == %{0 => 55, 100 => 5}
-    assert counts(CDL.mat_hold(@bars)) == %{0 => 60}
-    assert counts(CDL.matching_low(@bars)) == %{0 => 60}
-    assert counts(CDL.morning_doji_star(@bars)) == %{0 => 60}
-    assert counts(CDL.morning_star(@bars)) == %{0 => 60}
-    assert counts(CDL.on_neck(@bars)) == %{0 => 60}
-    assert counts(CDL.piercing(@bars)) == %{0 => 60}
-    assert counts(CDL.rickshaw_man(@bars)) == %{0 => 49, 100 => 11}
-    assert counts(CDL.rise_fall_3_methods(@bars)) == %{0 => 60}
-    assert counts(CDL.separating_lines(@bars)) == %{-100 => 3, 0 => 56, 100 => 1}
-    assert counts(CDL.shooting_star(@bars)) == %{-100 => 1, 0 => 59}
-    assert counts(CDL.short_line(@bars)) == %{0 => 58, 100 => 2}
-    assert counts(CDL.spinning_top(@bars)) == %{0 => 54, 100 => 6}
-    assert counts(CDL.stalled_pattern(@bars)) == %{0 => 60}
-    assert counts(CDL.stick_sandwich(@bars)) == %{0 => 60}
-    assert counts(CDL.takuri(@bars)) == %{0 => 60}
-    assert counts(CDL.tasuki_gap(@bars)) == %{0 => 60}
+    assert counts(CDL.two_crows(@bars)) == %{0 => 60}
     assert counts(CDL.three_black_crows(@bars)) == %{0 => 60}
     assert counts(CDL.three_inside(@bars)) == %{-100 => 1, 0 => 59}
     assert counts(CDL.three_line_strike(@bars)) == %{0 => 60}
     assert counts(CDL.three_outside(@bars)) == %{0 => 60}
     assert counts(CDL.three_stars_in_south(@bars)) == %{0 => 60}
-    assert counts(CDL.three_white_soldiers(@bars)) == %{0 => 59, 100 => 1}
+    assert counts(CDL.three_white_soldiers(@bars)) == %{0 => 60}
+    assert counts(CDL.abandoned_baby(@bars)) == %{0 => 60}
+    assert counts(CDL.advance_block(@bars)) == %{0 => 60}
+    assert counts(CDL.belt_hold(@bars)) == %{0 => 56, 100 => 4}
+    assert counts(CDL.breakaway(@bars)) == %{0 => 60}
+    assert counts(CDL.closing_marubozu(@bars)) == %{-100 => 8, 0 => 41, 100 => 11}
+    assert counts(CDL.conceal_babys_wall(@bars)) == %{0 => 60}
+    assert counts(CDL.counterattack(@bars)) == %{0 => 60}
+    assert counts(CDL.dark_cloud_cover(@bars)) == %{0 => 60}
+    assert counts(CDL.doji(@bars)) == %{0 => 50, 100 => 10}
+    assert counts(CDL.doji_star(@bars)) == %{0 => 60}
+    assert counts(CDL.dragonfly_doji(@bars)) == %{0 => 60}
+    assert counts(CDL.engulfing(@bars)) == %{0 => 60}
+    assert counts(CDL.evening_doji_star(@bars)) == %{0 => 60}
+    assert counts(CDL.evening_star(@bars)) == %{0 => 60}
+    assert counts(CDL.gap_side_side_white(@bars)) == %{0 => 60}
+    assert counts(CDL.gravestone_doji(@bars)) == %{0 => 60}
+    assert counts(CDL.hammer(@bars)) == %{0 => 60}
+    assert counts(CDL.hanging_man(@bars)) == %{0 => 60}
+    assert counts(CDL.harami(@bars)) == %{-100 => 1, 0 => 58, 100 => 1}
+    assert counts(CDL.harami_cross(@bars)) == %{-100 => 1, 0 => 59}
+    assert counts(CDL.high_wave(@bars)) == %{0 => 47, 100 => 13}
+    assert counts(CDL.hikkake(@bars)) == %{-100 => 1, 0 => 52, 100 => 4, 200 => 3}
+    assert counts(CDL.hikkake_mod(@bars)) == %{0 => 60}
+    assert counts(CDL.homing_pigeon(@bars)) == %{0 => 59, 100 => 1}
+    assert counts(CDL.identical_3_crows(@bars)) == %{0 => 60}
+    assert counts(CDL.in_neck(@bars)) == %{0 => 60}
+    assert counts(CDL.inverted_hammer(@bars)) == %{0 => 60}
+    assert counts(CDL.kicking(@bars)) == %{0 => 60}
+    assert counts(CDL.kicking_by_length(@bars)) == %{0 => 60}
+    assert counts(CDL.ladder_bottom(@bars)) == %{0 => 60}
+    assert counts(CDL.long_legged_doji(@bars)) == %{0 => 50, 100 => 10}
+    assert counts(CDL.long_line(@bars)) == %{-100 => 2, 0 => 53, 100 => 5}
+    assert counts(CDL.marubozu(@bars)) == %{0 => 56, 100 => 4}
+    assert counts(CDL.matching_low(@bars)) == %{0 => 59, 100 => 1}
+    assert counts(CDL.mat_hold(@bars)) == %{0 => 60}
+    assert counts(CDL.morning_doji_star(@bars)) == %{0 => 60}
+    assert counts(CDL.morning_star(@bars)) == %{0 => 60}
+    assert counts(CDL.on_neck(@bars)) == %{0 => 60}
+    assert counts(CDL.piercing(@bars)) == %{0 => 60}
+    assert counts(CDL.rickshaw_man(@bars)) == %{0 => 52, 100 => 8}
+    assert counts(CDL.rise_fall_3_methods(@bars)) == %{0 => 60}
+    assert counts(CDL.separating_lines(@bars)) == %{0 => 59, 100 => 1}
+    assert counts(CDL.shooting_star(@bars)) == %{0 => 60}
+    assert counts(CDL.short_line(@bars)) == %{-100 => 1, 0 => 57, 100 => 2}
+    assert counts(CDL.spinning_top(@bars)) == %{-100 => 3, 0 => 41, 100 => 16}
+    assert counts(CDL.stalled_pattern(@bars)) == %{0 => 60}
+    assert counts(CDL.stick_sandwich(@bars)) == %{0 => 60}
+    assert counts(CDL.takuri(@bars)) == %{0 => 60}
+    assert counts(CDL.tasuki_gap(@bars)) == %{0 => 60}
     assert counts(CDL.thrusting(@bars)) == %{0 => 60}
     assert counts(CDL.tristar(@bars)) == %{0 => 60}
-    assert counts(CDL.two_crows(@bars)) == %{0 => 60}
     assert counts(CDL.unique_3_river(@bars)) == %{0 => 60}
     assert counts(CDL.upside_gap_2crows(@bars)) == %{0 => 60}
     assert counts(CDL.xside_gap_3methods(@bars)) == %{0 => 60}

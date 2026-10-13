@@ -428,7 +428,7 @@ defmodule TAlib.Indicators.MA do
   ## Examples
 
       iex> TAlib.Indicators.MA.dema([1, 2, 3, 4, 5, 6, 7, 8], 2)
-      6.0
+      8.0
   """
   @spec dema(list(number), pos_integer) :: float | nil
   def dema(prices, period \\ 30)
@@ -446,7 +446,7 @@ defmodule TAlib.Indicators.MA do
   Calculate the full DEMA series (`2 * EMA - EMA(EMA)`).
 
       iex> TAlib.Indicators.MA.dema_list([1, 2, 3, 4, 5, 6, 7, 8], 2)
-      [nil, nil, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+      [nil, nil, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
   """
   @spec dema_list(list(number), pos_integer) :: list(float | nil)
   def dema_list(prices, period \\ 30)
@@ -464,7 +464,7 @@ defmodule TAlib.Indicators.MA do
   `3 * EMA - 3 * EMA(EMA) + EMA(EMA(EMA))`.
 
       iex> TAlib.Indicators.MA.tema([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2) |> Float.round(4)
-      7.0
+      10.0
   """
   @spec tema(list(number), pos_integer) :: float | nil
   def tema(prices, period \\ 30)
@@ -482,7 +482,7 @@ defmodule TAlib.Indicators.MA do
   Calculate the full TEMA series.
 
       iex> TAlib.Indicators.MA.tema_list([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2)
-      [nil, nil, nil, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+      [nil, nil, nil, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
   """
   @spec tema_list(list(number), pos_integer) :: list(float | nil)
   def tema_list(prices, period \\ 30)
@@ -534,8 +534,12 @@ defmodule TAlib.Indicators.MA do
   whose smoothing constant adapts to the efficiency ratio
   (net change over path length) of the last `period` prices.
 
+  The smoothing constants are fixed like TA-Lib's (fastest 2/3,
+  slowest 2/31) regardless of the period, and at `period` 1 the series
+  is the input itself.
+
       iex> TAlib.Indicators.MA.kama([1, 2, 3, 4, 5, 6, 7, 8], 2) |> Float.round(4)
-      6.8162
+      6.7868
   """
   @spec kama(list(number), pos_integer) :: float | nil
   def kama(prices, period \\ 30)
@@ -543,7 +547,8 @@ defmodule TAlib.Indicators.MA do
   def kama(_prices, period) when not is_valid_period(period),
     do: TAlib.invalid_period!(period)
 
-  def kama(prices, period) when is_list(prices) and length(prices) < period + 1, do: nil
+  def kama(prices, period) when is_list(prices) and period > 1 and length(prices) < period + 1,
+    do: nil
 
   def kama(prices, period) when is_list(prices), do: List.last(kama_series(prices, period))
 
@@ -554,7 +559,7 @@ defmodule TAlib.Indicators.MA do
       ...>   nil -> nil
       ...>   x -> Float.round(x * 1.0, 4)
       ...> end)
-      [nil, nil, 3.0, 3.4444, 4.1358, 4.9643, 5.8691, 6.8162]
+      [nil, nil, 2.4444, 3.1358, 3.9643, 4.8691, 5.8162, 6.7868]
   """
   @spec kama_list(list(number), pos_integer) :: list(number | nil)
   def kama_list(prices, period \\ 30)
@@ -562,8 +567,9 @@ defmodule TAlib.Indicators.MA do
   def kama_list(_prices, period) when not is_valid_period(period),
     do: TAlib.invalid_period!(period)
 
-  def kama_list(prices, period) when is_list(prices) and length(prices) < period + 1,
-    do: List.duplicate(nil, length(prices))
+  def kama_list(prices, period)
+      when is_list(prices) and period > 1 and length(prices) < period + 1,
+      do: List.duplicate(nil, length(prices))
 
   def kama_list(prices, period) when is_list(prices), do: kama_series(prices, period)
 
@@ -572,7 +578,7 @@ defmodule TAlib.Indicators.MA do
   with the given volume factor.
 
       iex> TAlib.Indicators.MA.t3(Enum.to_list(1..14), 2) |> Float.round(4)
-      8.45
+      13.55
   """
   @spec t3(list(number), pos_integer, number) :: float | nil
   def t3(prices, period \\ 30, vfactor \\ 0.7)
@@ -654,11 +660,16 @@ defmodule TAlib.Indicators.MA do
     List.duplicate(nil, period - 1) ++ values
   end
 
+  # Each EMA stage lags the previous by `period - 1` bars, so the stages
+  # combine tail-aligned: DEMA[i] pairs e1[i] with e2[i] where both sit at
+  # input bar i (TA-Lib runs the stages in lockstep the same way).
   defp dema_series(prices, period) do
     e1 = prices |> ema_list(period) |> Enum.reject(&is_nil/1)
     e2 = e1 |> ema_list(period) |> Enum.reject(&is_nil/1)
 
-    values = Enum.zip(e1, e2) |> Enum.map(fn {a, b} -> 2 * a - b end)
+    values =
+      Enum.zip(Enum.drop(e1, period - 1), e2) |> Enum.map(fn {a, b} -> 2 * a - b end)
+
     List.duplicate(nil, 2 * (period - 1)) ++ values
   end
 
@@ -668,7 +679,7 @@ defmodule TAlib.Indicators.MA do
     e3 = e2 |> ema_list(period) |> Enum.reject(&is_nil/1)
 
     values =
-      [e1, e2, e3]
+      [Enum.drop(e1, 2 * (period - 1)), Enum.drop(e2, period - 1), e3]
       |> Enum.zip()
       |> Enum.map(fn {a, b, c} -> 3 * a - 3 * b + c end)
 
@@ -702,45 +713,94 @@ defmodule TAlib.Indicators.MA do
       |> Enum.reverse()
       |> Enum.drop(1)
 
-    c1 = -:math.pow(vfactor, 3)
-    c2 = 3 * vfactor * vfactor + 3 * :math.pow(vfactor, 3)
-    c3 = -6 * vfactor * vfactor - 3 * vfactor - 3 * :math.pow(vfactor, 3)
-    c4 = 1 + 3 * vfactor + :math.pow(vfactor, 3) + 3 * vfactor * vfactor
+    # Coefficients exactly as TA-Lib builds them (same operation order,
+    # so the values agree bit for bit).
+    temp = vfactor * vfactor
+    c1 = 0 - temp * vfactor
+    c2 = 3.0 * (temp - c1)
+    c3 = (0 - 6.0) * temp - 3.0 * (vfactor - c1)
+    c4 = 3.0 * temp + (3.0 * vfactor + 1.0 - c1)
+
+    [e1, e2, e3, e4, e5, e6] = emas
 
     values =
-      emas
-      |> Enum.take(-4)
+      [
+        Enum.drop(e1, 5 * (period - 1)),
+        Enum.drop(e2, 4 * (period - 1)),
+        Enum.drop(e3, 3 * (period - 1)),
+        Enum.drop(e4, 2 * (period - 1)),
+        Enum.drop(e5, period - 1),
+        e6
+      ]
       |> Enum.zip()
-      |> Enum.map(fn {a, b, c, d} -> c1 * d + c2 * c + c3 * b + c4 * a end)
+      |> Enum.map(fn {_, _, a, b, c, d} -> c4 * a + (c3 * b + (c1 * d + c2 * c)) end)
 
-    List.duplicate(nil, length(prices) - length(values)) ++ values
+    List.duplicate(nil, 6 * (period - 1)) ++ values
   end
 
+  # KAMA mirroring TA-Lib: the smoothing constants are fixed (fastest
+  # 2/3, slowest 2/31 — not a function of the period), the efficiency
+  # ratio is clamped to 1 (and set to 1 on a flat window), and the
+  # volatility sum slides by add-then-subtract like the C code, so the
+  # series matches TA-Lib bar for bar.
+  @kama_const_max 2.0 / (30.0 + 1.0)
+  @kama_const_diff 2.0 / (2.0 + 1.0) - @kama_const_max
+
+  defp kama_series(prices, 1) when is_list(prices), do: Enum.map(prices, &(&1 * 1.0))
+
   defp kama_series(prices, period) do
-    {window, rest} = Enum.split(prices, period + 1)
-    seed = List.last(window)
+    tuple = List.to_tuple(prices)
+    size = tuple_size(tuple)
+
+    # The efficiency-ratio sum over the first `period` one-day changes,
+    # and the trailing run of exactly-flat changes (TA-Lib resets the
+    # sum when a whole window has gone flat to drop rounding residue).
+    {sum_roc, null_run, _} =
+      Enum.reduce(0..(period - 1), {0.0, 0, 0}, fn i, {sum, nulls, _} ->
+        diff = elem(tuple, i) - elem(tuple, i + 1)
+        {sum + abs(diff), if(diff == 0.0, do: nulls + 1, else: 0), i + 1}
+      end)
+
+    prev = elem(tuple, period - 1)
 
     {series, _} =
-      Enum.reduce(rest, {[seed], {window, seed}}, fn price, {acc, {win, prev}} ->
-        new_win = tl(win) ++ [price]
-        [oldest | _] = new_win
+      Enum.reduce(
+        period..(size - 1),
+        {[], {prev, sum_roc, null_run, elem(tuple, 0), 1}},
+        fn i, {acc, {prev_kama, sum_roc, null_run, trailing_value, trailing_idx}} ->
+          price = elem(tuple, i)
 
-        change = abs(price - oldest)
+          {roc, sum_roc, null_run, trailing_value, trailing_idx} =
+            if i == period do
+              {price - elem(tuple, 0), sum_roc, null_run, elem(tuple, 0), 1}
+            else
+              leaving = elem(tuple, trailing_idx)
+              roc = price - leaving
 
-        volatility =
-          new_win
-          |> Enum.chunk_every(2, 1, :discard)
-          |> Enum.reduce(0, fn [a, b], sum -> sum + abs(b - a) end)
+              sum_roc =
+                sum_roc - abs(trailing_value - leaving) + abs(price - elem(tuple, i - 1))
 
-        efficiency = if volatility == 0, do: 0.0, else: change / volatility
+              null_run = if price - elem(tuple, i - 1) == 0.0, do: null_run + 1, else: 0
 
-        fastest = 2 / 3
-        slowest = 2 / (period + 1)
-        sc = :math.pow(efficiency * (fastest - slowest) + slowest, 2)
+              {null_run, sum_roc} =
+                if null_run >= period, do: {period, 0.0}, else: {null_run, sum_roc}
 
-        value = prev + sc * (price - prev)
-        {[value | acc], {new_win, value}}
-      end)
+              {roc, sum_roc, null_run, leaving, trailing_idx + 1}
+            end
+
+          efficiency =
+            if sum_roc <= 0.0 or sum_roc <= roc,
+              do: 1.0,
+              else: min(abs(roc / sum_roc), 1.0)
+
+          sc0 = efficiency * @kama_const_diff + @kama_const_max
+          sc = sc0 * sc0
+
+          value = (price - prev_kama) * sc + prev_kama
+
+          {[value | acc], {value, sum_roc, null_run, trailing_value, trailing_idx}}
+        end
+      )
 
     List.duplicate(nil, period) ++ Enum.reverse(series)
   end

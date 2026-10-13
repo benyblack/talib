@@ -5,6 +5,52 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-10-13
+
+The exact-parity release: every audited function — numeric series and
+all 61 candlestick patterns — now matches the real TA-Lib C library
+(TA-Lib 0.8.1 through its Python bindings) bar for bar on shared
+fixtures. See `docs/BENCHMARKS.md` for the value audit.
+
+### Changed (breaking)
+
+- **CDL**: every pattern is retranslated from the TA-Lib C source with
+  its candle-settings table — bodies judged against the average real
+  body of the 10 previous candles, doji at 10% of the average high-low
+  range, shadows against the body or average shadow sum, near/far/
+  equal distances from the average high-low range of the 5 previous
+  candles. The `average_period` parameter is gone from all 61 pattern
+  functions (TA-Lib's settings are fixed, not per-call); the
+  `penetration` parameters stay with TA-Lib's defaults. Scores change
+  accordingly, and warmup bars inside each pattern's lookback now
+  score `0` exactly like TA-Lib.
+- **CDL hikkake/hikkake_mod**: `hikkake_mod` is the real 4-bar
+  modified pattern (two inside bars, the second closing near its
+  extreme), and both report `±200` when a close confirms the setup
+  within three bars. `engulfing`/`harami`/`harami_cross` report `±80`
+  when the touching bodies are merely equal.
+- **MA**: DEMA, TEMA and T3 combine their EMA stages tail-aligned
+  (the stages previously paired head-to-tail, skewing early values);
+  T3 uses TA-Lib's exact coefficient arithmetic. KAMA now mirrors
+  TA-Lib: fixed smoothing constants (fastest 2/3, slowest 2/31
+  regardless of period), efficiency ratio clamped to 1 and set to 1
+  on flat windows, sliding volatility sum, and a plain copy of the
+  input at period 1. The KAMA walk is single-pass, ~9x faster at
+  100k points.
+- **MACD**: the line is seeded like TA-Lib (slow EMA from the average
+  of the first `slow` prices, fast EMA from the average of the last
+  `fast` of those) and `macd_ext/5` delegates its `:ema` variant
+  through the same walk, so MACD, MACDFIX and MACDEXT agree with the
+  C library bit for bit. Early MACD-line values change (they converge
+  to the old ones after `2 * slow` bars).
+
+### Added
+
+- `bench/audit_dump.exs`: the value-audit fixture generator and dump
+  (`mix run bench/audit_dump.exs <dir> [size] [seed]`), the Elixir
+  half of the TA-Lib agreement check described in
+  `docs/BENCHMARKS.md`.
+
 ## [0.9.1] - 2026-10-13
 
 ### Added
