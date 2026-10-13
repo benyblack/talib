@@ -1,11 +1,13 @@
 defmodule TAlib.Indicators.MA do
+  alias TAlib.Indicators.Roll
   alias TAlib.Indicators.Window
 
   @moduledoc """
   Moving average indicator [Wikipedia](https://en.wikipedia.org/wiki/Moving_average).
 
-  Calculates SMA, WMA, EMA and CMA, plus incremental `update_*` helpers for
-  maintaining a moving average as new prices arrive.
+  Calculates SMA, WMA, EMA and CMA, plus streaming `*_init`/`*_next`
+  state for maintaining a moving average in O(1) as new prices arrive
+  (and the older incremental `update_*` helpers).
 
   See `TAlib` for the input conventions: prices are always given in
   chronological order, oldest first. Series functions return results aligned
@@ -905,5 +907,250 @@ defmodule TAlib.Indicators.MA do
         end
       end
     end)
+  end
+
+  # ------------------------------------------------------------------
+  # Streaming: O(1) per price
+  #
+  # `*_init` warms the state up by replaying `history` through the same
+  # sliding arithmetic the batch walks use (operation for operation), so
+  # the returned series equals the batch series exactly and `*_next`
+  # continues it bit for bit. The states are opaque — build them with
+  # `*_init`, advance them with `*_next`, persist them as-is.
+  # ------------------------------------------------------------------
+
+  defmodule EMAState do
+    @moduledoc false
+    @type t :: %__MODULE__{}
+    defstruct [:period, :multiplier, :prev, :seed]
+  end
+
+  defmodule RMAState do
+    @moduledoc false
+    @type t :: %__MODULE__{}
+    defstruct [:period, :prev, :seed]
+  end
+
+  defmodule WMAState do
+    @moduledoc false
+    @type t :: %__MODULE__{}
+    defstruct [:period, :denominator, :numerator, :count, :sum]
+  end
+
+  @doc """
+  Warm up streaming SMA state from `history`.
+
+  Returns `{state, values}` with `values` the full SMA series of
+  `history` (identical to `sma_list/2`), and `state` ready to continue
+  that series one price at a time in O(1) via `sma_next/2`. History
+  needs at least `period` prices.
+
+  ## Examples
+
+      iex> {state, values} = TAlib.Indicators.MA.sma_init([1, 2, 3, 4, 5], 3)
+      iex> values
+      [nil, nil, 2.0, 3.0, 4.0]
+      iex> {_state, 5.0} = TAlib.Indicators.MA.sma_next(state, 6)
+  """
+  @spec sma_init(list(number), pos_integer) :: {Roll.Sum.t(), list(float | nil)}
+  def sma_init(prices, period \\ 50)
+
+  def sma_init(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def sma_init(prices, period) when is_list(prices) do
+    if length(prices) < period,
+      do: raise(ArgumentError, "sma_init needs at least period (#{period}) prices")
+
+    Roll.replay(prices, Roll.sum_new(period), &sma_next/2)
+  end
+
+  @doc """
+  Advance streaming SMA state by one price, in O(1).
+
+      iex> {state, _} = TAlib.Indicators.MA.sma_init([1, 2, 3, 4, 5], 3)
+      iex> {_state, value} = TAlib.Indicators.MA.sma_next(state, 6)
+      iex> value
+      5.0
+  """
+  @spec sma_next(Roll.Sum.t(), number) :: {Roll.Sum.t(), float | nil}
+  def sma_next(%Roll.Sum{period: period} = state, price) do
+    {state, sum} = Roll.sum_push(state, price)
+    {state, if(is_nil(sum), do: nil, else: sum / period)}
+  end
+
+  @doc """
+  Warm up streaming EMA state from `history`: returns `{state, values}`
+  (identical to `ema_list/2`) and continues in O(1) via `ema_next/2`.
+  History needs at least `period` prices.
+
+      iex> {state, values} = TAlib.Indicators.MA.ema_init([1, 2, 3, 4, 5], 2)
+      iex> values
+      [nil, 1.5, 2.5, 3.5, 4.5]
+      iex> {_state, 5.5} = TAlib.Indicators.MA.ema_next(state, 6)
+  """
+  @spec ema_init(list(number), pos_integer) :: {EMAState.t(), list(float | nil)}
+  def ema_init(prices, period \\ 50)
+
+  def ema_init(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def ema_init(prices, period) when is_list(prices) do
+    if length(prices) < period,
+      do: raise(ArgumentError, "ema_init needs at least period (#{period}) prices")
+
+    state = %EMAState{
+      period: period,
+      multiplier: 2 / (period + 1),
+      prev: nil,
+      seed: Roll.sum_new(period)
+    }
+
+    Roll.replay(prices, state, &ema_next/2)
+  end
+
+  @doc """
+  Advance streaming EMA state by one price, in O(1).
+
+      iex> {state, _} = TAlib.Indicators.MA.ema_init([1, 2, 3, 4, 5], 2)
+      iex> {_state, value} = TAlib.Indicators.MA.ema_next(state, 6)
+      iex> value
+      5.5
+  """
+  @spec ema_next(EMAState.t(), number) :: {EMAState.t(), float | nil}
+  def ema_next(%EMAState{period: period, seed: seed, prev: nil} = state, price) do
+    {seed, sum} = Roll.sum_push(seed, price)
+
+    if is_nil(sum) do
+      {%{state | seed: seed}, nil}
+    else
+      value = sum / period
+      {%{state | seed: seed, prev: value}, value}
+    end
+  end
+
+  def ema_next(%EMAState{multiplier: multiplier, prev: prev} = state, price) do
+    value = prev + multiplier * (price - prev)
+    {%{state | prev: value}, value}
+  end
+
+  @doc """
+  Warm up streaming WMA state from `history`: returns `{state, values}`
+  (identical to `wma_list/2`) and continues in O(1) via `wma_next/2`.
+  History needs at least `period` prices.
+
+      iex> {state, values} = TAlib.Indicators.MA.wma_init([1, 2, 3, 4, 5], 3)
+      iex> values
+      [nil, nil, 2.3333333333333335, 3.3333333333333335, 4.333333333333333]
+      iex> {_state, value} = TAlib.Indicators.MA.wma_next(state, 6)
+      iex> Float.round(value, 4)
+      5.3333
+  """
+  @spec wma_init(list(number), pos_integer) :: {WMAState.t(), list(float | nil)}
+  def wma_init(prices, period \\ 50)
+
+  def wma_init(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def wma_init(prices, period) when is_list(prices) do
+    if length(prices) < period,
+      do: raise(ArgumentError, "wma_init needs at least period (#{period}) prices")
+
+    state = %WMAState{
+      period: period,
+      denominator: period * (period + 1) / 2,
+      numerator: 0,
+      count: 0,
+      sum: Roll.sum_new(period)
+    }
+
+    Roll.replay(prices, state, &wma_next/2)
+  end
+
+  @doc """
+  Advance streaming WMA state by one price, in O(1).
+
+      iex> {state, _} = TAlib.Indicators.MA.wma_init([1, 2, 3, 4, 5], 3)
+      iex> {_state, value} = TAlib.Indicators.MA.wma_next(state, 6)
+      iex> Float.round(value, 4)
+      5.3333
+  """
+  @spec wma_next(WMAState.t(), number) :: {WMAState.t(), float | nil}
+  def wma_next(
+        %WMAState{period: period, count: count, numerator: numerator, sum: sum} = state,
+        value
+      )
+      when count < period do
+    {sum, _} = Roll.sum_push(sum, value)
+    numerator = numerator + value * (count + 1)
+
+    if count + 1 == period do
+      {%{state | numerator: numerator, count: count + 1, sum: sum}, numerator / state.denominator}
+    else
+      {%{state | numerator: numerator, count: count + 1, sum: sum}, nil}
+    end
+  end
+
+  def wma_next(%WMAState{period: period, numerator: numerator, sum: sum} = state, value) do
+    window_sum = sum.sum
+    {sum, _} = Roll.sum_push(sum, value)
+    numerator = numerator - window_sum + period * value
+    {%{state | numerator: numerator, sum: sum}, numerator / state.denominator}
+  end
+
+  @doc """
+  Warm up streaming RMA (Wilder) state from `history`: returns
+  `{state, values}` (identical to `rma_list/2`) and continues in O(1)
+  via `rma_next/2`. History needs at least `period` prices.
+
+      iex> {state, values} = TAlib.Indicators.MA.rma_init([1, 2, 3, 4, 5], 3)
+      iex> values
+      [nil, nil, 2.0, 2.6666666666666665, 3.444444444444444]
+      iex> {_state, value} = TAlib.Indicators.MA.rma_next(state, 6)
+      iex> Float.round(value, 4)
+      4.2963
+  """
+  @spec rma_init(list(number), pos_integer) :: {RMAState.t(), list(float | nil)}
+  def rma_init(prices, period \\ 50)
+
+  def rma_init(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def rma_init(prices, period) when is_list(prices) do
+    if length(prices) < period,
+      do: raise(ArgumentError, "rma_init needs at least period (#{period}) prices")
+
+    Roll.replay(prices, rma_state_new(period), &rma_next/2)
+  end
+
+  @doc false
+  # A fresh (unwarmed) RMA state, for indicators that chain one — ATR
+  # feeds it True Ranges, for example.
+  @spec rma_state_new(pos_integer) :: RMAState.t()
+  def rma_state_new(period), do: %RMAState{period: period, prev: nil, seed: Roll.sum_new(period)}
+
+  @doc """
+  Advance streaming RMA (Wilder) state by one price, in O(1).
+
+      iex> {state, _} = TAlib.Indicators.MA.rma_init([1, 2, 3, 4, 5], 3)
+      iex> {_state, value} = TAlib.Indicators.MA.rma_next(state, 6)
+      iex> Float.round(value, 4)
+      4.2963
+  """
+  @spec rma_next(RMAState.t(), number) :: {RMAState.t(), float | nil}
+  def rma_next(%RMAState{period: period, seed: seed, prev: nil} = state, price) do
+    {seed, sum} = Roll.sum_push(seed, price)
+
+    if is_nil(sum) do
+      {%{state | seed: seed}, nil}
+    else
+      value = sum / period
+      {%{state | seed: seed, prev: value}, value}
+    end
+  end
+
+  def rma_next(%RMAState{period: period, prev: prev} = state, price) do
+    value = (prev * (period - 1) + price) / period
+    {%{state | prev: value}, value}
   end
 end
