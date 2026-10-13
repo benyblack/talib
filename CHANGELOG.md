@@ -7,8 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-12
+
 ### Added
 
+- Streaming state API for fourteen indicator families — `init` warms
+  up from history in one pass, `next` advances one bar in O(1)
+  (~0.05-0.56 µs per tick at 100k points, against 5-65 ms to
+  recompute the whole series per tick): `MA.sma_init/sma_next`,
+  `ema_*`, `wma_*`, `rma_*`, `StdDev.init/next`, `BBands.init/next`,
+  `ATR.init/next`, `RSI.init/next`, `MACD.init/next` (the `macd_fix`
+  signal convention, the natural one to continue a feed from),
+  `Stochastic.k_init/k_next` and `slow_init/slow_next`,
+  `WilliamsR.init/next`, `Donchian.init/next` and `Aroon.init/next`,
+  backed by shared rolling-sum/monotonic-deque primitives
+  (`TAlib.Indicators.Roll`). `init` replays the batch arithmetic
+  operation for operation, so the streamed series continues the batch
+  series **bit for bit**: the test suite folds `next` over hundreds of
+  bars and compares the result with `==`, and the value audit runs
+  every streaming family against the real C library the same way
+  (warm up on 80% of the fixture, step bar by bar) — all 20 streamed
+  series match, bit-exact for eight of them.
+- `bench/bench_stream.exs`: the per-tick streaming benchmark, with
+  results in `docs/BENCHMARKS.md` ("Streaming: O(1) per tick").
+- A Streaming section to the README.
 - A Reflections section to the README: the parity journey, the
   value-audit methodology, and the honest performance/concurrency
   story.

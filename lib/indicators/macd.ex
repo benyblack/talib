@@ -1,4 +1,5 @@
 defmodule TAlib.Indicators.MACD do
+  alias TAlib.Indicators.Roll
   alias TAlib.Indicators.MA
 
   @moduledoc """
@@ -337,5 +338,157 @@ defmodule TAlib.Indicators.MACD do
       end
 
     %{macd: macd_value, signal: signal_value, histogram: histogram_value}
+  end
+
+  # ------------------------------------------------------------------
+  # Streaming: O(1) per price. `init` replays the history through the
+  # same seeded fast/slow walk as `macd_series/3` and the same whole-
+  # series signal EMA as `macd_fix/4` (the MACDFIX convention — the
+  # natural one to continue a feed from), so the three series continue
+  # the batch results bit for bit. As everywhere, `fast` and `slow`
+  # are normalized so the slow line is the longer one; history needs
+  # at least `slow + signal_period - 1` prices.
+  # ------------------------------------------------------------------
+
+  defmodule State do
+    @moduledoc false
+    @type t :: %__MODULE__{}
+    defstruct [
+      :fast,
+      :slow,
+      :signal_period,
+      :fast_k,
+      :slow_k,
+      :signal_k,
+      :prefix,
+      :prefix_count,
+      :f,
+      :s,
+      :signal_prefix,
+      :signal_count,
+      :sig
+    ]
+  end
+
+  @doc """
+  Warm up streaming MACD state from `history`.
+
+  Returns `{state, values}` where `values` carries the three aligned
+  series — `%{macd: , signal: , histogram: }` — of `history`: the MACD
+  line equals `macd_list/3`, and the signal line is the whole-series
+  EMA of it (the `macd_fix/4` convention). `state` continues all three
+  one price at a time in O(1) via `next/2`.
+
+  ## Examples
+
+      iex> {state, values} = TAlib.Indicators.MACD.init([5, 1, 6, 4, 7, 3, 8, 2, 9], 3, 2, 2)
+      iex> List.last(values.macd) |> Float.round(4)
+      0.6532
+      iex> {_state, %{macd: m, signal: s, histogram: h}} = TAlib.Indicators.MACD.next(state, 7)
+      iex> {Float.round(m, 4), Float.round(s, 4), Float.round(h, 4)}
+      {0.2959, 0.3165, -0.0206}
+  """
+  @spec init(list(number), pos_integer, pos_integer, pos_integer) ::
+          {State.t(),
+           %{macd: list(float | nil), signal: list(float | nil), histogram: list(float | nil)}}
+  def init(prices, fast \\ 12, slow \\ 26, signal_period \\ 9)
+
+  def init(_prices, fast, _slow, _signal_period) when not is_valid_period(fast),
+    do: TAlib.invalid_period!(fast)
+
+  def init(_prices, _fast, slow, _signal_period) when not is_valid_period(slow),
+    do: TAlib.invalid_period!(slow)
+
+  def init(_prices, _fast, _slow, signal_period) when not is_valid_period(signal_period),
+    do: TAlib.invalid_period!(signal_period)
+
+  def init(prices, fast, slow, signal_period) when is_list(prices) do
+    {fast, slow} = if fast <= slow, do: {fast, slow}, else: {slow, fast}
+
+    if length(prices) < slow + signal_period - 1,
+      do:
+        raise(
+          ArgumentError,
+          "init needs at least slow + signal - 1 (#{slow + signal_period - 1}) prices"
+        )
+
+    state = %State{
+      fast: fast,
+      slow: slow,
+      signal_period: signal_period,
+      fast_k: 2 / (fast + 1),
+      slow_k: 2 / (slow + 1),
+      signal_k: 2 / (signal_period + 1),
+      prefix: :queue.new(),
+      prefix_count: 0,
+      signal_prefix: :queue.new(),
+      signal_count: 0
+    }
+
+    {state, series} =
+      Roll.replay(prices, state, fn state, price ->
+        {state, %{macd: m, signal: s, histogram: h}} = next(state, price)
+        {state, {m, s, h}}
+      end)
+
+    unzip = fn tuples, idx -> Enum.map(tuples, &elem(&1, idx)) end
+
+    {state,
+     %{
+       macd: unzip.(series, 0),
+       signal: unzip.(series, 1),
+       histogram: unzip.(series, 2)
+     }}
+  end
+
+  @doc """
+  Advance streaming MACD state by one price, in O(1):
+  `{state, %{macd: , signal: , histogram: }}`.
+
+      iex> {state, _} = TAlib.Indicators.MACD.init([5, 1, 6, 4, 7, 3, 8, 2, 9], 3, 2, 2)
+      iex> {_state, %{macd: m, signal: s, histogram: h}} = TAlib.Indicators.MACD.next(state, 7)
+      iex> {Float.round(m, 4), Float.round(s, 4), Float.round(h, 4)}
+      {0.2959, 0.3165, -0.0206}
+  """
+  @spec next(State.t(), number) ::
+          {State.t(), %{macd: float | nil, signal: float | nil, histogram: float | nil}}
+  def next(%State{prefix_count: count, slow: slow} = state, price) when count < slow - 1 do
+    {%{state | prefix: :queue.in(price, state.prefix), prefix_count: count + 1},
+     %{macd: nil, signal: nil, histogram: nil}}
+  end
+
+  def next(%State{prefix_count: count, slow: slow} = state, price) when count == slow - 1 do
+    prefix = state.prefix |> then(&:queue.in(price, &1)) |> :queue.to_list()
+    slow_seed = Enum.sum(prefix) / slow
+    fast_seed = (prefix |> Enum.take(-state.fast) |> Enum.sum()) / state.fast
+
+    state = %{state | prefix_count: count + 1, f: fast_seed, s: slow_seed}
+    signal_step(state, fast_seed - slow_seed)
+  end
+
+  def next(%State{fast_k: fast_k, slow_k: slow_k, f: f, s: s} = state, price) do
+    f = (price - f) * fast_k + f
+    s = (price - s) * slow_k + s
+    signal_step(%{state | f: f, s: s}, f - s)
+  end
+
+  defp signal_step(%State{signal_count: count, signal_period: period} = state, macd)
+       when count < period - 1 do
+    {%{state | signal_prefix: :queue.in(macd, state.signal_prefix), signal_count: count + 1},
+     %{macd: macd, signal: nil, histogram: nil}}
+  end
+
+  defp signal_step(%State{signal_count: count, signal_period: period} = state, macd)
+       when count == period - 1 do
+    macds = state.signal_prefix |> then(&:queue.in(macd, &1)) |> :queue.to_list()
+    signal = Enum.sum(macds) / period
+
+    {%{state | signal_count: count + 1, sig: signal},
+     %{macd: macd, signal: signal, histogram: macd - signal}}
+  end
+
+  defp signal_step(%State{signal_k: signal_k, sig: sig} = state, macd) do
+    signal = sig + signal_k * (macd - sig)
+    {%{state | sig: signal}, %{macd: macd, signal: signal, histogram: macd - signal}}
   end
 end

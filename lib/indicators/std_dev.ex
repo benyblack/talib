@@ -1,4 +1,6 @@
 defmodule TAlib.Indicators.StdDev do
+  alias TAlib.Indicators.Roll
+
   @moduledoc """
   Rolling population standard deviation.
 
@@ -95,5 +97,66 @@ defmodule TAlib.Indicators.StdDev do
     slide_std_dev(older, ahead, new_sum, new_sq_sum, period, [
       pop_std_dev(new_sum, new_sq_sum, period) | acc
     ])
+  end
+
+  # ------------------------------------------------------------------
+  # Streaming: O(1) per price. `init` replays the history through the
+  # same sliding sums `std_dev_list/2` keeps, so its series equals the
+  # batch series exactly and `next/2` continues it bit for bit.
+  # ------------------------------------------------------------------
+
+  defmodule State do
+    @moduledoc false
+    @type t :: %__MODULE__{}
+    defstruct [:period, :sums, :squares]
+  end
+
+  @doc """
+  Warm up streaming standard-deviation state from `history`.
+
+  Returns `{state, values}` with `values` the full series of `history`
+  (identical to `std_dev_list/2`), and `state` ready to continue it one
+  price at a time in O(1) via `next/2`. History needs at least `period`
+  prices.
+
+  ## Examples
+
+      iex> {state, values} = TAlib.Indicators.StdDev.init([2, 4, 6, 8], 2)
+      iex> values
+      [nil, 1.0, 1.0, 1.0]
+      iex> {_state, 1.0} = TAlib.Indicators.StdDev.next(state, 10)
+  """
+  @spec init(list(number), pos_integer) :: {State.t(), list(float | nil)}
+  def init(prices, period \\ 50)
+
+  def init(_prices, period) when not is_valid_period(period), do: TAlib.invalid_period!(period)
+
+  def init(prices, period) when is_list(prices) do
+    if length(prices) < period,
+      do: raise(ArgumentError, "init needs at least period (#{period}) prices")
+
+    state = %State{period: period, sums: Roll.sum_new(period), squares: Roll.sum_new(period)}
+    Roll.replay(prices, state, &next/2)
+  end
+
+  @doc """
+  Advance streaming standard-deviation state by one price, in O(1).
+
+      iex> {state, _} = TAlib.Indicators.StdDev.init([2, 4, 6, 8], 2)
+      iex> {_state, value} = TAlib.Indicators.StdDev.next(state, 10)
+      iex> value
+      1.0
+  """
+  @spec next(State.t(), number) :: {State.t(), float | nil}
+  def next(%State{period: period, sums: sums, squares: squares} = state, price) do
+    {sums, _} = Roll.sum_push(sums, price)
+    {squares, _} = Roll.sum_push(squares, price * price)
+    state = %{state | sums: sums, squares: squares}
+
+    if sums.filled do
+      {state, pop_std_dev(sums.sum, squares.sum, period)}
+    else
+      {state, nil}
+    end
   end
 end

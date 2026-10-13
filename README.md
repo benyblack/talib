@@ -11,8 +11,9 @@ cross-verified series for series.
 
 - Overlap studies: SMA, EMA, WMA, CMA, Wilder RMA, DEMA, TEMA, TRIMA, KAMA,
   T3, Midpoint, Midprice, Bollinger Bands, Keltner Channels, Donchian
-  Channels, Parabolic SAR — scalars and full series, plus incremental
-  `update_*` variants for streaming updates
+  Channels, Parabolic SAR — scalars and full series, plus streaming
+  `init`/`next` state for O(1) updates as new prices arrive (see
+  [Streaming](#streaming) below)
 - Momentum: RSI (Wilder), MACD, Stochastic (fast and slow), Stochastic RSI,
   Williams %R, ROC/ROCP/ROCR/ROCR100, Momentum, TRIX, CMO, APO, PPO, Aroon,
   Aroon Oscillator, BOP, CCI, ADX/DMI (+DI, -DI, DX, ADXR)
@@ -79,6 +80,31 @@ iex> TAlib.Indicators.MACD.macd_all(prices)
 
 More examples can be found in the module documentation
 ([Hexdocs](https://hexdocs.pm/talib/)) and in the test suite.
+
+## Streaming
+
+Batch functions walk their whole input — the wrong shape for a live
+feed. Fourteen indicator families (the MAs, StdDev, Bollinger Bands,
+ATR, RSI, MACD, Stochastic fast and slow, Williams %R, Donchian,
+Aroon) also come as O(1) streaming state: warm up once from history,
+then advance one bar at a time.
+
+```elixir
+# Warm up from history; values equals the batch series exactly
+{state, values} = TAlib.Indicators.MA.sma_init(history, 20)
+
+# One new price, one constant-time step — ~0.1 µs, vs recomputing
+# the whole series per tick
+{state, value} = TAlib.Indicators.MA.sma_next(state, price)
+```
+
+In a `GenServer`, keep the state in the process and advance it in
+`handle_info/2` as ticks arrive; the states are small immutable
+structs, safe to keep and pass around. Because `init` replays the
+batch arithmetic operation for operation, the streamed series
+continues the batch series **bit for bit** — the same values the audit
+checked against the C library (see
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md), "Streaming: O(1) per tick").
 
 ## Reflections
 
