@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-10-13
+
+### Changed
+
+- The Hilbert/MESA core (`HT`, and `MAMA` with it) carries the
+  transformer state and each emitted bar in fixed-layout tuples
+  instead of per-bar maps: ~4.7x faster for `ht_trendline` and
+  `mama` (598 -> 128 ms and 555 -> 117 ms at 100k points; 38x and
+  37x the C library), ~3x for `ht_dcphase` (11x of C). The
+  arithmetic is untouched — the value audit confirms the outputs are
+  bit-for-bit identical to the C library (and to the previous
+  implementation: same error figures to the last digit).
+
 ## [0.11.0] - 2026-10-13
 
 The performance release: the windowed indicators became single-pass

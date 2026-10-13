@@ -42,9 +42,9 @@ column to watch is the order of magnitude.
 | `CDL.doji` | 98.9 | 0.101 | 984x |
 | `CDL.engulfing` | 105.4 | 0.041 | 2547x |
 | `CDL.three_white_soldiers` | 87.0 | 0.559 | 156x |
-| `HT.ht_trendline` | 598.5 | 3.338 | 179x |
-| `HT.ht_dcphase` | 653.6 | 19.389 | 34x |
-| `MAMA.mama` (0.5, 0.05) | 555.4 | 3.215 | 173x |
+| `HT.ht_trendline` | 128.1 | 3.338 | 38x |
+| `HT.ht_dcphase` | 221.5 | 19.389 | 11x |
+| `MAMA.mama` (0.5, 0.05) | 117.2 | 3.215 | 37x |
 
 (`Donchian.donchian_list` (20) runs at 53.1 ms; TA-Lib has no Donchian
 function to compare against.)
@@ -62,9 +62,10 @@ function to compare against.)
   candle context across all 61 patterns: ~1.75 s at 100k bars versus
   ~6.8 s calling the patterns one by one (~3.9x). A single pattern
   costs the same either way.
-- The Hilbert family still pays for the per-bar map its shared core
-  emits (the C code updates scalars in place) — the remaining
-  outlier at ~170x.
+- The Hilbert/MESA family carries its transformer state and per-bar
+  records in fixed-layout tuples (0.12.0): ~4.7x faster than the map
+  plumbing it replaced, with bit-for-bit identical outputs. Nothing
+  on the table exceeds 40x the C library any more.
 - Everything is linear in the input; nothing is quadratic. (It was
   not always so: the original `CDL` context builder re-sliced per bar —
   9.2 s per pattern at 100k — until the 0.9.1 single-pass rewrite.)

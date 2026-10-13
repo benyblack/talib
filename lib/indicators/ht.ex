@@ -23,6 +23,64 @@ defmodule TAlib.Indicators.HT do
   @deg2rad :math.atan(1) / 45
   @deg2rad_by_360 :math.atan(1) * 8
 
+  # ------------------------------------------------------------------
+  # Container layout: the transformer state and each emitted bar are
+  # fixed-layout tuples (below) — the arithmetic they carry is exactly
+  # the C reference's, so the outputs stay bit-for-bit identical; the
+  # tuples just keep the per-bar cost to O(1) element reads/writes
+  # instead of map updates.
+  # ------------------------------------------------------------------
+
+  # State tuple slots (elem indices).
+  @s_sub 0
+  @s_sum 1
+  @s_trailing 2
+  @s_trailing_idx 3
+  @s_hilbert_idx 4
+  @s_det_odd 5
+  @s_det_odd_prev 6
+  @s_det_odd_in 7
+  @s_det_even 8
+  @s_det_even_prev 9
+  @s_det_even_in 10
+  @s_q1_odd 11
+  @s_q1_odd_prev 12
+  @s_q1_odd_in 13
+  @s_q1_even 14
+  @s_q1_even_prev 15
+  @s_q1_even_in 16
+  @s_ji_odd 17
+  @s_ji_odd_prev 18
+  @s_ji_odd_in 19
+  @s_ji_even 20
+  @s_ji_even_prev 21
+  @s_ji_even_in 22
+  @s_jq_odd 23
+  @s_jq_odd_prev 24
+  @s_jq_odd_in 25
+  @s_jq_even 26
+  @s_jq_even_prev 27
+  @s_jq_even_in 28
+  @s_prev_q2 29
+  @s_prev_i2 30
+  @s_re 31
+  @s_im 32
+  @s_period 33
+  @s_smooth_period 34
+  @s_i1_even_prev3 35
+  @s_i1_even_prev2 36
+  @s_i1_odd_prev3 37
+  @s_i1_odd_prev2 38
+
+  # Bar tuple slots: what the per-indicator tails read.
+  @b_today 0
+  @b_price 1
+  @b_smoothed 2
+  @b_q1 3
+  @b_i1_prev3 4
+  @b_dcp_int 5
+  @b_smooth_period 6
+
   @doc """
   The Hilbert Transform - Instantaneous Trendline: the raw price
   averaged over the dominant cycle and blended with its own recent
@@ -39,13 +97,12 @@ defmodule TAlib.Indicators.HT do
     {tuple, stream} = core_stream(prices)
 
     {values, _acc} =
-      scan(stream, %{i_trend1: 0, i_trend2: 0, i_trend3: 0}, fn bar, acc ->
-        avg = raw_average(tuple, bar.today, bar.dcp_int)
+      scan(stream, {0, 0, 0}, fn bar, {t1, t2, t3} ->
+        avg = raw_average(tuple, elem(bar, @b_today), elem(bar, @b_dcp_int))
 
-        value =
-          (2.0 * acc.i_trend2 + (4.0 * avg + 3.0 * acc.i_trend1) + acc.i_trend3) / 10.0
+        value = (2.0 * t2 + (4.0 * avg + 3.0 * t1) + t3) / 10.0
 
-        {value, %{acc | i_trend3: acc.i_trend2, i_trend2: acc.i_trend1, i_trend1: avg}}
+        {value, {avg, t1, t2}}
       end)
 
     align(values)
@@ -65,7 +122,9 @@ defmodule TAlib.Indicators.HT do
     {_tuple, stream} = core_stream(prices, @warmup_short)
 
     {values, _acc} =
-      scan(stream, :unused, @lookback_short, fn bar, acc -> {bar.smooth_period, acc} end)
+      scan(stream, :unused, @lookback_short, fn bar, acc ->
+        {elem(bar, @b_smooth_period), acc}
+      end)
 
     align(values, @warmup_short)
   end
@@ -90,7 +149,11 @@ defmodule TAlib.Indicators.HT do
 
     {values, _acc} =
       scan(stream, :unused, @lookback_short, fn bar, acc ->
-        value = if bar.today >= @lookback_short, do: {bar.i1_prev3, bar.q1}, else: nil
+        value =
+          if elem(bar, @b_today) >= @lookback_short,
+            do: {elem(bar, @b_i1_prev3), elem(bar, @b_q1)},
+            else: nil
+
         {value, acc}
       end)
 
@@ -111,19 +174,19 @@ defmodule TAlib.Indicators.HT do
     {_tuple, stream} = core_stream(prices)
 
     {values, _acc} =
-      scan(stream, phase_tail(), fn bar, acc ->
-        {sp, sp_idx} = push_smooth_price(acc, bar.smoothed)
+      scan(stream, phase_tail(), fn bar, {sp, sp_idx, dc_phase} ->
+        sp = put_elem(sp, sp_idx, elem(bar, @b_smoothed))
 
         dc_phase =
-          dominant_cycle_phase(sp, sp_idx, bar.smooth_period, acc.dc_phase, bar.dcp_int)
+          dominant_cycle_phase(
+            sp,
+            sp_idx,
+            elem(bar, @b_smooth_period),
+            dc_phase,
+            elem(bar, @b_dcp_int)
+          )
 
-        {dc_phase,
-         %{
-           acc
-           | smooth_price: sp,
-             smooth_price_idx: advance_sp_idx(sp_idx),
-             dc_phase: dc_phase
-         }}
+        {dc_phase, {sp, advance_sp_idx(sp_idx), dc_phase}}
       end)
 
     align(values)
@@ -148,19 +211,20 @@ defmodule TAlib.Indicators.HT do
     {_tuple, stream} = core_stream(prices)
 
     {values, _acc} =
-      scan(stream, phase_tail(), fn bar, acc ->
-        {sp, sp_idx} = push_smooth_price(acc, bar.smoothed)
+      scan(stream, phase_tail(), fn bar, {sp, sp_idx, dc_phase} ->
+        sp = put_elem(sp, sp_idx, elem(bar, @b_smoothed))
 
         dc_phase =
-          dominant_cycle_phase(sp, sp_idx, bar.smooth_period, acc.dc_phase, bar.dcp_int)
+          dominant_cycle_phase(
+            sp,
+            sp_idx,
+            elem(bar, @b_smooth_period),
+            dc_phase,
+            elem(bar, @b_dcp_int)
+          )
 
         {{:math.sin(dc_phase * @deg2rad), :math.sin((dc_phase + 45) * @deg2rad)},
-         %{
-           acc
-           | smooth_price: sp,
-             smooth_price_idx: advance_sp_idx(sp_idx),
-             dc_phase: dc_phase
-         }}
+         {sp, advance_sp_idx(sp_idx), dc_phase}}
       end)
 
     values |> align() |> unzip_pair(:sine, :lead_sine)
@@ -181,39 +245,41 @@ defmodule TAlib.Indicators.HT do
     {tuple, stream} = core_stream(prices)
 
     {values, _acc} =
-      scan(stream, mode_tail(), fn bar, acc ->
-        {sp, sp_idx} = push_smooth_price(acc, bar.smoothed)
+      scan(stream, mode_tail(), fn bar,
+                                   {sp, sp_idx, dc_phase, prev_dc_phase, prev_sine,
+                                    prev_lead_sine, days_in_trend, t1, t2, t3} ->
+        sp = put_elem(sp, sp_idx, elem(bar, @b_smoothed))
+        smooth_period = elem(bar, @b_smooth_period)
 
         dc_phase =
-          dominant_cycle_phase(sp, sp_idx, bar.smooth_period, acc.dc_phase, bar.dcp_int)
+          dominant_cycle_phase(sp, sp_idx, smooth_period, dc_phase, elem(bar, @b_dcp_int))
 
-        avg = raw_average(tuple, bar.today, bar.dcp_int)
+        avg = raw_average(tuple, elem(bar, @b_today), elem(bar, @b_dcp_int))
 
-        trendline =
-          (2.0 * acc.i_trend2 + (4.0 * avg + 3.0 * acc.i_trend1) + acc.i_trend3) / 10.0
+        trendline = (2.0 * t2 + (4.0 * avg + 3.0 * t1) + t3) / 10.0
 
         sine = :math.sin(dc_phase * @deg2rad)
         lead_sine = :math.sin((dc_phase + 45) * @deg2rad)
 
         crossed =
-          (sine > lead_sine and acc.prev_sine <= acc.prev_lead_sine) or
-            (sine < lead_sine and acc.prev_sine >= acc.prev_lead_sine)
+          (sine > lead_sine and prev_sine <= prev_lead_sine) or
+            (sine < lead_sine and prev_sine >= prev_lead_sine)
 
-        days_in_trend = if(crossed, do: 0, else: acc.days_in_trend) + 1
+        days_in_trend = if(crossed, do: 0, else: days_in_trend) + 1
 
         trend =
           cond do
             crossed -> 0
-            days_in_trend < 0.5 * bar.smooth_period -> 0
+            days_in_trend < 0.5 * smooth_period -> 0
             true -> 1
           end
 
-        delta_phase = dc_phase - acc.prev_dc_phase
+        delta_phase = dc_phase - prev_dc_phase
 
         trend =
-          if bar.smooth_period != 0.0 and
-               delta_phase > 0.67 * 360.0 / bar.smooth_period and
-               delta_phase < 1.5 * 360.0 / bar.smooth_period,
+          if smooth_period != 0.0 and
+               delta_phase > 0.67 * 360.0 / smooth_period and
+               delta_phase < 1.5 * 360.0 / smooth_period,
              do: 0,
              else: trend
 
@@ -222,30 +288,18 @@ defmodule TAlib.Indicators.HT do
             do: 1,
             else: trend
 
-        acc = %{
-          acc
-          | smooth_price: sp,
-            smooth_price_idx: advance_sp_idx(sp_idx),
-            dc_phase: dc_phase,
-            prev_dc_phase: dc_phase,
-            prev_sine: sine,
-            prev_lead_sine: lead_sine,
-            days_in_trend: days_in_trend,
-            i_trend3: acc.i_trend2,
-            i_trend2: acc.i_trend1,
-            i_trend1: avg
-        }
-
-        {trend, acc}
+        {trend,
+         {sp, advance_sp_idx(sp_idx), dc_phase, dc_phase, sine, lead_sine, days_in_trend, avg, t1,
+          t2}}
       end)
 
     align(values)
   end
 
-  # The shared core: `{prices tuple, one bar map per index (warmup+1)..n-1}`
-  # carrying every intermediate the per-indicator tails need. The warmup
-  # length selects the TA-Lib family: 37 bars for the 63-lookback
-  # indicators, 12 for the 32-lookback ones.
+  # The shared core: `{prices tuple, one bar tuple per index
+  # (warmup+1)..n-1}` carrying every intermediate the per-indicator
+  # tails need. The warmup length selects the TA-Lib family: 37 bars
+  # for the 63-lookback indicators, 12 for the 32-lookback ones.
   @doc false
   def core_stream(prices, warmup) do
     tuple = List.to_tuple(prices)
@@ -260,36 +314,46 @@ defmodule TAlib.Indicators.HT do
 
   def core_stream(prices), do: core_stream(prices, @warmup)
 
+  # Bar accessors for the other MESA modules (MAMA): the layout is
+  # module-private, so the few cross-module reads go through here.
+  @doc false
+  def bar_price(bar), do: elem(bar, @b_price)
+
+  @doc false
+  def bar_q1_i1(bar), do: {elem(bar, @b_q1), elem(bar, @b_i1_prev3)}
+
   defp do_stream(_tuple, today, last, _state, acc) when today > last, do: Enum.reverse(acc)
 
   defp do_stream(tuple, today, last, state, acc) do
     price = elem(tuple, today)
 
-    adjusted_prev_period = 0.075 * state.period + 0.54
+    adjusted_prev_period = 0.075 * elem(state, @s_period) + 0.54
 
     # 4-bar WMA pre-smoother update.
-    period_wma_sub = state.period_wma_sub + price - state.trailing_wma_value
-    period_wma_sum = state.period_wma_sum + price * 4.0
-    trailing_wma_value = elem(tuple, state.trailing_wma_idx)
-    smoothed = period_wma_sum * 0.1
-    period_wma_sum = period_wma_sum - period_wma_sub
+    sub = elem(state, @s_sub) + price - elem(state, @s_trailing)
+    sum0 = elem(state, @s_sum) + price * 4.0
+    trailing = elem(tuple, elem(state, @s_trailing_idx))
+    smoothed = sum0 * 0.1
+    sum = sum0 - sub
 
-    state = %{
+    state =
       state
-      | period_wma_sub: period_wma_sub,
-        period_wma_sum: period_wma_sum,
-        trailing_wma_value: trailing_wma_value,
-        trailing_wma_idx: state.trailing_wma_idx + 1
-    }
+      |> put_elem(@s_sub, sub)
+      |> put_elem(@s_sum, sum)
+      |> put_elem(@s_trailing, trailing)
+      |> put_elem(@s_trailing_idx, elem(state, @s_trailing_idx) + 1)
 
-    {detrender, q1, i1_prev3, q2, i2, state} =
+    {_detrender, q1, i1_prev3, q2, i2, state} =
       hilbert_bar(state, today, smoothed, adjusted_prev_period)
 
-    # Dominant cycle period from the smoothed complex phasor.
-    re = 0.8 * state.re + 0.2 * (i2 * state.prev_i2 + q2 * state.prev_q2)
-    im = 0.8 * state.im + 0.2 * (i2 * state.prev_q2 - q2 * state.prev_i2)
+    prev_q2 = elem(state, @s_prev_q2)
+    prev_i2 = elem(state, @s_prev_i2)
 
-    prev_period = state.period
+    # Dominant cycle period from the smoothed complex phasor.
+    re = 0.8 * elem(state, @s_re) + 0.2 * (i2 * prev_i2 + q2 * prev_q2)
+    im = 0.8 * elem(state, @s_im) + 0.2 * (i2 * prev_q2 - q2 * prev_i2)
+
+    prev_period = elem(state, @s_period)
 
     period =
       if im != 0.0 and re != 0.0,
@@ -302,28 +366,19 @@ defmodule TAlib.Indicators.HT do
     period = min(period, 50)
     period = period * 0.2 + prev_period * 0.8
 
-    smooth_period = 0.67 * state.smooth_period + 0.33 * period
+    smooth_period = 0.67 * elem(state, @s_smooth_period) + 0.33 * period
 
-    state = %{
+    state =
       state
-      | re: re,
-        im: im,
-        prev_q2: q2,
-        prev_i2: i2,
-        period: period,
-        smooth_period: smooth_period
-    }
+      |> put_elem(@s_re, re)
+      |> put_elem(@s_im, im)
+      |> put_elem(@s_prev_q2, q2)
+      |> put_elem(@s_prev_i2, i2)
+      |> put_elem(@s_period, period)
+      |> put_elem(@s_smooth_period, smooth_period)
 
-    bar = %{
-      today: today,
-      price: price,
-      smoothed: smoothed,
-      detrender: detrender,
-      q1: q1,
-      i1_prev3: i1_prev3,
-      dcp_int: trunc(smooth_period + 0.5),
-      smooth_period: smooth_period
-    }
+    bar =
+      {today, price, smoothed, q1, i1_prev3, trunc(smooth_period + 0.5), smooth_period}
 
     do_stream(tuple, today + 1, last, state, [bar | acc])
   end
@@ -334,41 +389,70 @@ defmodule TAlib.Indicators.HT do
     parity = if rem(today, 2) == 0, do: :even, else: :odd
     opposite = if parity == :even, do: :odd, else: :even
 
-    {detrender, s} = transformer(state, parity, smoothed, adjusted_prev_period, :detrender)
-    {q1, s} = transformer(s, parity, detrender, adjusted_prev_period, :q1)
+    {detrender, state} =
+      transformer(state, smoothed, adjusted_prev_period, stage_slots(:detrender, parity))
 
-    i1_prev3 = parity_i1(s, parity, 3)
+    {q1, state} = transformer(state, detrender, adjusted_prev_period, stage_slots(:q1, parity))
 
-    {ji, s} = transformer(s, parity, i1_prev3, adjusted_prev_period, :ji)
-    {jq, s} = transformer(s, parity, q1, adjusted_prev_period, :jq)
+    i1_prev3 = i1_prev3(state, parity)
 
-    s = %{s | hilbert_idx: advance_hilbert_idx(s.hilbert_idx)}
+    {ji, state} = transformer(state, i1_prev3, adjusted_prev_period, stage_slots(:ji, parity))
+    {jq, state} = transformer(state, q1, adjusted_prev_period, stage_slots(:jq, parity))
 
-    q2 = 0.2 * (q1 + ji) + 0.8 * state.prev_q2
-    i2 = 0.2 * (i1_prev3 - jq) + 0.8 * state.prev_i2
+    state =
+      put_elem(
+        state,
+        @s_hilbert_idx,
+        advance_hilbert_idx(elem(state, @s_hilbert_idx))
+      )
+
+    prev_q2 = elem(state, @s_prev_q2)
+    prev_i2 = elem(state, @s_prev_i2)
+
+    q2 = 0.2 * (q1 + ji) + 0.8 * prev_q2
+    i2 = 0.2 * (i1_prev3 - jq) + 0.8 * prev_i2
 
     # I1 is the detrender delayed by three bars; each parity keeps its
     # own two-deep delay line and hands the value over on the next bar
     # of the opposite parity.
-    s = %{
-      s
-      | :"i1_#{opposite}_prev3" => Map.fetch!(state, :"i1_#{opposite}_prev2"),
-        :"i1_#{opposite}_prev2" => detrender
-    }
+    state =
+      state
+      |> put_elem(i1_slot(opposite, 3), i1_prev3(state, opposite, 2))
+      |> put_elem(i1_slot(opposite, 2), detrender)
 
-    {detrender, q1, i1_prev3, q2, i2, s}
+    {detrender, q1, i1_prev3, q2, i2, state}
   end
 
-  defp parity_i1(state, :even, _n), do: state.i1_even_prev3
-  defp parity_i1(state, :odd, _n), do: state.i1_odd_prev3
+  defp i1_prev3(state, :even), do: elem(state, @s_i1_even_prev3)
+  defp i1_prev3(state, :odd), do: elem(state, @s_i1_odd_prev3)
+
+  defp i1_prev3(state, :even, 2), do: elem(state, @s_i1_even_prev2)
+  defp i1_prev3(state, :even, 3), do: elem(state, @s_i1_even_prev3)
+
+  defp i1_prev3(state, :odd, 2), do: elem(state, @s_i1_odd_prev2)
+  defp i1_prev3(state, :odd, 3), do: elem(state, @s_i1_odd_prev3)
+
+  defp i1_slot(:even, 3), do: @s_i1_even_prev3
+  defp i1_slot(:even, 2), do: @s_i1_even_prev2
+  defp i1_slot(:odd, 3), do: @s_i1_odd_prev3
+  defp i1_slot(:odd, 2), do: @s_i1_odd_prev2
 
   # One Hilbert-transformer stage on the odd or even circular buffer,
   # exactly as the C reference computes it.
-  defp transformer(state, parity, input, adjusted_prev_period, stage) do
-    idx = state.hilbert_idx
-    buffer = Map.fetch!(state, :"#{stage}_#{parity}")
-    prev = Map.fetch!(state, :"prev_#{stage}_#{parity}")
-    prev_input = Map.fetch!(state, :"prev_#{stage}_input_#{parity}")
+  defp stage_slots(:detrender, :odd), do: {@s_det_odd, @s_det_odd_prev, @s_det_odd_in}
+  defp stage_slots(:detrender, :even), do: {@s_det_even, @s_det_even_prev, @s_det_even_in}
+  defp stage_slots(:q1, :odd), do: {@s_q1_odd, @s_q1_odd_prev, @s_q1_odd_in}
+  defp stage_slots(:q1, :even), do: {@s_q1_even, @s_q1_even_prev, @s_q1_even_in}
+  defp stage_slots(:ji, :odd), do: {@s_ji_odd, @s_ji_odd_prev, @s_ji_odd_in}
+  defp stage_slots(:ji, :even), do: {@s_ji_even, @s_ji_even_prev, @s_ji_even_in}
+  defp stage_slots(:jq, :odd), do: {@s_jq_odd, @s_jq_odd_prev, @s_jq_odd_in}
+  defp stage_slots(:jq, :even), do: {@s_jq_even, @s_jq_even_prev, @s_jq_even_in}
+
+  defp transformer(s, input, adjusted_prev_period, {buf_i, prev_i, in_i}) do
+    idx = elem(s, @s_hilbert_idx)
+    buffer = elem(s, buf_i)
+    prev = elem(s, prev_i)
+    prev_input = elem(s, in_i)
 
     temp = @a * input
     value = -elem(buffer, idx)
@@ -380,12 +464,10 @@ defmodule TAlib.Indicators.HT do
     value = value * adjusted_prev_period
 
     {value,
-     %{
-       state
-       | :"#{stage}_#{parity}" => buffer,
-         :"prev_#{stage}_#{parity}" => new_prev,
-         :"prev_#{stage}_input_#{parity}" => input
-     }}
+     s
+     |> put_elem(buf_i, buffer)
+     |> put_elem(prev_i, new_prev)
+     |> put_elem(in_i, input)}
   end
 
   defp advance_hilbert_idx(2), do: 0
@@ -415,46 +497,54 @@ defmodule TAlib.Indicators.HT do
 
     blank = {0.0, 0.0, 0.0}
 
-    %{
-      period_wma_sub: sub,
-      period_wma_sum: sum,
-      trailing_wma_value: trailing,
-      trailing_wma_idx: idx,
-      hilbert_idx: 0,
-      detrender_odd: blank,
-      detrender_even: blank,
-      prev_detrender_odd: 0,
-      prev_detrender_even: 0,
-      prev_detrender_input_odd: 0,
-      prev_detrender_input_even: 0,
-      q1_odd: blank,
-      q1_even: blank,
-      prev_q1_odd: 0,
-      prev_q1_even: 0,
-      prev_q1_input_odd: 0,
-      prev_q1_input_even: 0,
-      ji_odd: blank,
-      ji_even: blank,
-      prev_ji_odd: 0,
-      prev_ji_even: 0,
-      prev_ji_input_odd: 0,
-      prev_ji_input_even: 0,
-      jq_odd: blank,
-      jq_even: blank,
-      prev_jq_odd: 0,
-      prev_jq_even: 0,
-      prev_jq_input_odd: 0,
-      prev_jq_input_even: 0,
-      prev_q2: 0,
-      prev_i2: 0,
-      re: 0,
-      im: 0,
-      period: 0,
-      smooth_period: 0,
-      i1_even_prev3: 0,
-      i1_even_prev2: 0,
-      i1_odd_prev3: 0,
-      i1_odd_prev2: 0
+    {
+      # WMA pre-smoother
+      sub,
+      sum,
+      trailing,
+      idx,
+      # transformer ring index
+      0,
+      # detrender: odd buffer/prev/input, then even
+      blank,
+      0,
+      0,
+      blank,
+      0,
+      0,
+      # q1
+      blank,
+      0,
+      0,
+      blank,
+      0,
+      0,
+      # ji
+      blank,
+      0,
+      0,
+      blank,
+      0,
+      0,
+      # jq
+      blank,
+      0,
+      0,
+      blank,
+      0,
+      0,
+      # complex phasor smoothing and the period
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      # I1 delay lines, even then odd
+      0,
+      0,
+      0,
+      0
     }
   end
 
@@ -465,11 +555,6 @@ defmodule TAlib.Indicators.HT do
   defp raw_average(tuple, today, dcp_int) do
     Enum.reduce(0..(dcp_int - 1), 0.0, fn i, sum -> sum + elem(tuple, today - i) end) /
       dcp_int
-  end
-
-  defp push_smooth_price(acc, smoothed) do
-    idx = acc.smooth_price_idx
-    {put_elem(acc.smooth_price, idx, smoothed), idx}
   end
 
   defp advance_sp_idx(49), do: 0
@@ -506,24 +591,17 @@ defmodule TAlib.Indicators.HT do
   defp step_back(0), do: 49
   defp step_back(idx), do: idx - 1
 
+  # Phase-family tail state: {smooth price ring (50), ring index,
+  # dominant cycle phase}.
   defp phase_tail do
-    %{
-      smooth_price: List.to_tuple(List.duplicate(0.0, 50)),
-      smooth_price_idx: 0,
-      dc_phase: 0
-    }
+    {List.to_tuple(List.duplicate(0.0, 50)), 0, 0}
   end
 
+  # Trend-mode tail: the phase tail plus {prev dc phase, prev sine,
+  # prev lead sine, days in trend, i_trend1..3}.
   defp mode_tail do
-    Map.merge(phase_tail(), %{
-      prev_dc_phase: 0,
-      prev_sine: 0,
-      prev_lead_sine: 0,
-      days_in_trend: 0,
-      i_trend1: 0,
-      i_trend2: 0,
-      i_trend3: 0
-    })
+    {sp, idx, phase} = phase_tail()
+    {sp, idx, phase, 0, 0, 0, 0, 0, 0, 0}
   end
 
   # The tail state machine runs for every stream bar (the C reference
@@ -533,7 +611,7 @@ defmodule TAlib.Indicators.HT do
   def scan(stream, tail, lookback, step) do
     Enum.map_reduce(stream, tail, fn bar, acc ->
       {value, acc} = step.(bar, acc)
-      {if(bar.today >= lookback, do: value, else: nil), acc}
+      {if(elem(bar, @b_today) >= lookback, do: value, else: nil), acc}
     end)
   end
 
