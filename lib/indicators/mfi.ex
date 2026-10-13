@@ -77,10 +77,7 @@ defmodule TAlib.Indicators.MFI do
     tps = typical_prices(bars)
     flows = Enum.map(bars, fn bar -> typical_price(bar) * bar.volume end)
     # flow_t counts as positive/negative by the change from TP_{t-1}
-    directions = [
-      0
-      | Enum.map(Enum.chunk_every(tps, 2, 1, :discard), fn [prev, cur] -> compare(cur, prev) end)
-    ]
+    directions = [0 | direction_walk(tps, [])]
 
     nils = List.duplicate(nil, min(period, length(bars)))
 
@@ -88,6 +85,12 @@ defmodule TAlib.Indicators.MFI do
     # the earliest usable window starts at the second bar.
     nils ++ slide_mfi(tl(flows), tl(directions), period, [])
   end
+
+  defp direction_walk([prev, cur | rest], acc),
+    do: direction_walk([cur | rest], [compare(cur, prev) | acc])
+
+  defp direction_walk([_single], acc), do: Enum.reverse(acc)
+  defp direction_walk([], acc), do: Enum.reverse(acc)
 
   defp slide_mfi(flows, _directions, period, acc) when length(flows) < period,
     do: Enum.reverse(acc)

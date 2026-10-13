@@ -79,14 +79,42 @@ defmodule TAlib.Indicators.CCI do
     do: List.duplicate(nil, length(bars))
 
   def cci_list(bars, period) when is_list(bars) do
-    values =
-      bars
-      |> typical_prices()
-      |> Enum.chunk_every(period, 1, :discard)
-      |> Enum.map(&cci_over_window/1)
+    tps = typical_prices(bars)
+    tuple = List.to_tuple(tps)
+    n = tuple_size(tuple)
+    seed_sum = tps |> Enum.take(period) |> Enum.sum()
 
-    List.duplicate(nil, period - 1) ++ values
+    # The mean rides a sliding sum, but the mean deviation is read
+    # straight from the window (like TA-Lib, which also walks it).
+    {values, _sum, _older} =
+      Enum.reduce((period - 1)..(n - 1)//1, {[], seed_sum, tps}, fn i, {acc, sum, older} ->
+        mean = sum / period
+
+        deviation =
+          mean_deviation(tuple, i - period + 1, i, mean, 0) / period
+
+        value =
+          if deviation == 0,
+            do: nil,
+            else: (elem(tuple, i) - mean) / (0.015 * deviation)
+
+        {sum, older} =
+          if i < n - 1 do
+            {sum - hd(older) + elem(tuple, i + 1), tl(older)}
+          else
+            {sum, older}
+          end
+
+        {[value | acc], sum, older}
+      end)
+
+    List.duplicate(nil, period - 1) ++ Enum.reverse(values)
   end
+
+  defp mean_deviation(_tuple, j, last, _mean, acc) when j > last, do: acc
+
+  defp mean_deviation(tuple, j, last, mean, acc),
+    do: mean_deviation(tuple, j + 1, last, mean, acc + abs(elem(tuple, j) - mean))
 
   defp typical_prices(bars) do
     Enum.map(bars, fn %{high: high, low: low, close: close} -> (high + low + close) / 3 end)

@@ -1,4 +1,6 @@
 defmodule TAlib.Indicators.MA do
+  alias TAlib.Indicators.Window
+
   @moduledoc """
   Moving average indicator [Wikipedia](https://en.wikipedia.org/wiki/Moving_average).
 
@@ -654,18 +656,34 @@ defmodule TAlib.Indicators.MA do
   def midpoint_list(prices, period) when is_list(prices) do
     values =
       prices
-      |> Enum.chunk_every(period, 1, :discard)
-      |> Enum.map(fn window -> (Enum.max(window) + Enum.min(window)) / 2 end)
+      |> Window.maxes_mins(period)
+      |> Enum.map(fn {highest, lowest} -> (highest + lowest) / 2 end)
 
     List.duplicate(nil, period - 1) ++ values
+  end
+
+  # The EMA values only (no nil padding), from the first defined bar
+  # on — the stage inputs of the composite averages; identical values
+  # to `ema_list |> Enum.reject(&is_nil/1)` without the padded pass.
+  defp ema_values(prices, period) do
+    seed = Enum.sum(Enum.take(prices, period)) / period
+    multiplier = 2 / (period + 1)
+
+    {reversed, _} =
+      Enum.reduce(Enum.drop(prices, period), {[seed], seed}, fn price, {acc, prev} ->
+        value = prev + multiplier * (price - prev)
+        {[value | acc], value}
+      end)
+
+    Enum.reverse(reversed)
   end
 
   # Each EMA stage lags the previous by `period - 1` bars, so the stages
   # combine tail-aligned: DEMA[i] pairs e1[i] with e2[i] where both sit at
   # input bar i (TA-Lib runs the stages in lockstep the same way).
   defp dema_series(prices, period) do
-    e1 = prices |> ema_list(period) |> Enum.reject(&is_nil/1)
-    e2 = e1 |> ema_list(period) |> Enum.reject(&is_nil/1)
+    e1 = ema_values(prices, period)
+    e2 = ema_values(e1, period)
 
     values =
       Enum.zip(Enum.drop(e1, period - 1), e2) |> Enum.map(fn {a, b} -> 2 * a - b end)
@@ -674,9 +692,9 @@ defmodule TAlib.Indicators.MA do
   end
 
   defp tema_series(prices, period) do
-    e1 = prices |> ema_list(period) |> Enum.reject(&is_nil/1)
-    e2 = e1 |> ema_list(period) |> Enum.reject(&is_nil/1)
-    e3 = e2 |> ema_list(period) |> Enum.reject(&is_nil/1)
+    e1 = ema_values(prices, period)
+    e2 = ema_values(e1, period)
+    e3 = ema_values(e2, period)
 
     values =
       [Enum.drop(e1, 2 * (period - 1)), Enum.drop(e2, period - 1), e3]
@@ -708,7 +726,7 @@ defmodule TAlib.Indicators.MA do
   defp t3_series(prices, period, vfactor) do
     emas =
       Enum.reduce(1..6, [prices], fn _i, [prev | _] = acc ->
-        [prev |> ema_list(period) |> Enum.reject(&is_nil/1) | acc]
+        [ema_values(prev, period) | acc]
       end)
       |> Enum.reverse()
       |> Enum.drop(1)

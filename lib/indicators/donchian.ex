@@ -1,4 +1,6 @@
 defmodule TAlib.Indicators.Donchian do
+  alias TAlib.Indicators.Window
+
   @moduledoc """
   Donchian Channels [Wikipedia](https://en.wikipedia.org/wiki/Donchian_channel).
 
@@ -39,8 +41,12 @@ defmodule TAlib.Indicators.Donchian do
 
   def donchian(bars, period) when is_list(bars) and length(bars) < period, do: nil
 
-  def donchian(bars, period) when is_list(bars),
-    do: bars |> Enum.take(-period) |> channel_over_bars()
+  def donchian(bars, period) when is_list(bars) do
+    window = Enum.take(bars, -period)
+    highest = window |> Enum.map(& &1.high) |> Enum.max()
+    lowest = window |> Enum.map(& &1.low) |> Enum.min()
+    %{upper: highest, middle: (highest + lowest) / 2, lower: lowest}
+  end
 
   @doc """
   Calculate the full Donchian Channels series.
@@ -74,14 +80,17 @@ defmodule TAlib.Indicators.Donchian do
     do: List.duplicate(nil, length(bars))
 
   def donchian_list(bars, period) when is_list(bars) do
-    values = bars |> Enum.chunk_every(period, 1, :discard) |> Enum.map(&channel_over_bars/1)
-    List.duplicate(nil, period - 1) ++ values
-  end
+    highs = Window.maxes(Enum.map(bars, & &1.high), period)
+    lows = Window.mins(Enum.map(bars, & &1.low), period)
 
-  defp channel_over_bars(window) do
-    highest = window |> Enum.map(& &1.high) |> Enum.max()
-    lowest = window |> Enum.map(& &1.low) |> Enum.min()
-    %{upper: highest, middle: (highest + lowest) / 2, lower: lowest}
+    values =
+      highs
+      |> Enum.zip(lows)
+      |> Enum.map(fn {highest, lowest} ->
+        %{upper: highest, middle: (highest + lowest) / 2, lower: lowest}
+      end)
+
+    List.duplicate(nil, period - 1) ++ values
   end
 
   @doc """
@@ -104,6 +113,10 @@ defmodule TAlib.Indicators.Donchian do
 
   def midprice(bars, period) when is_list(bars) and length(bars) < period, do: nil
 
-  def midprice(bars, period) when is_list(bars),
-    do: bars |> Enum.take(-period) |> channel_over_bars() |> Map.fetch!(:middle)
+  def midprice(bars, period) when is_list(bars) do
+    window = Enum.take(bars, -period)
+    highest = window |> Enum.map(& &1.high) |> Enum.max()
+    lowest = window |> Enum.map(& &1.low) |> Enum.min()
+    (highest + lowest) / 2
+  end
 end

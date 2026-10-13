@@ -1,4 +1,6 @@
 defmodule TAlib.Indicators.WilliamsR do
+  alias TAlib.Indicators.Window
+
   @moduledoc """
   Williams %R [Wikipedia](https://en.wikipedia.org/wiki/Williams_%25R).
 
@@ -34,8 +36,17 @@ defmodule TAlib.Indicators.WilliamsR do
 
   def williams_r(prices, period) when is_list(prices) and length(prices) < period, do: nil
 
-  def williams_r(prices, period) when is_list(prices),
-    do: prices |> Enum.take(-period) |> wr_over_window()
+  def williams_r(prices, period) when is_list(prices) do
+    window = Enum.take(prices, -period)
+    highest = Enum.max(window)
+    lowest = Enum.min(window)
+
+    if highest == lowest do
+      nil
+    else
+      (highest - List.last(window)) / (highest - lowest) * -100
+    end
+  end
 
   @doc """
   Calculate the full Williams %R series.
@@ -67,19 +78,18 @@ defmodule TAlib.Indicators.WilliamsR do
     do: List.duplicate(nil, length(prices))
 
   def williams_r_list(prices, period) when is_list(prices) do
-    values = prices |> Enum.chunk_every(period, 1, :discard) |> Enum.map(&wr_over_window/1)
+    values =
+      prices
+      |> Window.maxes_mins(period)
+      |> Enum.zip(Enum.drop(prices, period - 1))
+      |> Enum.map(fn
+        {{highest, lowest}, close} when highest != lowest ->
+          (highest - close) / (highest - lowest) * -100
+
+        _ ->
+          nil
+      end)
+
     List.duplicate(nil, period - 1) ++ values
-  end
-
-  defp wr_over_window(window) do
-    highest = Enum.max(window)
-    lowest = Enum.min(window)
-    range = highest - lowest
-
-    if range == 0 do
-      nil
-    else
-      (highest - List.last(window)) / range * -100
-    end
   end
 end

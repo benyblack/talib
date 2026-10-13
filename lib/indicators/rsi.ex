@@ -172,9 +172,12 @@ defmodule TAlib.Indicators.RSI do
   def loss(prices) when is_list(prices),
     do: window_changes(prices) |> Enum.reduce(0, fn change, acc -> acc + max(-change, 0) end)
 
-  # Consecutive price changes, chronological: b - a for each adjacent pair.
-  defp window_changes(prices),
-    do: prices |> Enum.chunk_every(2, 1, :discard) |> Enum.map(fn [a, b] -> b - a end)
+  # Consecutive price changes, chronological: b - a for each adjacent
+  # pair, built by one walk instead of a two-element window per bar.
+  defp window_changes([first | rest]), do: changes_walk(rest, first, [])
+
+  defp changes_walk([], _prev, acc), do: Enum.reverse(acc)
+  defp changes_walk([b | rest], a, acc), do: changes_walk(rest, b, [b - a | acc])
 
   # Wilder-smoothed gain/loss averages for the latest point.
   defp wilder_averages(prices, period) do
