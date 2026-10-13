@@ -4,10 +4,10 @@ Technical analysis library for Elixir.
 
 ## Indicators
 
-126 of the 133 [TA-Lib](https://github.com/ta-lib/ta-lib-python) functions are
-covered — see [PARITY.md](PARITY.md) for the function-by-function map. The
-remaining seven (the Hilbert-transform family and MAMA) share the MESA
-machinery and are pending.
+All 133 [TA-Lib](https://github.com/ta-lib/ta-lib-python) functions are covered —
+see [PARITY.md](PARITY.md) for the function-by-function map. The Hilbert-transform
+family and MAMA are faithful translations of the TA-Lib C reference,
+cross-verified series for series.
 
 - Overlap studies: SMA, EMA, WMA, CMA, Wilder RMA, DEMA, TEMA, TRIMA, KAMA,
   T3, Midpoint, Midprice, Bollinger Bands, Keltner Channels, Donchian
@@ -24,6 +24,9 @@ machinery and are pending.
   scored per bar (+100 bullish / -100 bearish / 0 none)
 - Generic moving-average dispatch (`MA.ma/3`), variable-period MA (`mavp`),
   `MACD.macd_ext/macd_fix`, extended Parabolic SAR
+- Cycle indicators: the full Hilbert-transform family (`HT.ht_trendline`,
+  `ht_dcperiod`, `ht_dcphase`, `ht_phasor`, `ht_sine`, `ht_trendmode`) and
+  `MAMA.mama` (with FAMA)
 
 Bar-based indicators take maps such as
 `%{open: o, high: h, low: l, close: c, volume: v}` with the keys they need —

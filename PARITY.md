@@ -7,17 +7,17 @@ library returns `nil` — never `0` — for insufficient data or undefined
 values, validates periods with `ArgumentError`, and takes prices/bars
 in chronological order (oldest first) with nil-padded series.
 
-## Overlap Studies — 15/17
+## Overlap Studies — 17/17
 
 | TA-Lib | TAlib | Notes |
 | --- | --- | --- |
 | BBANDS | `BBands.bbands/_list` | mult configurable; middle always SMA |
 | DEMA | `MA.dema/dema_list` | |
 | EMA | `MA.ema/ema_list` | |
-| HT_TRENDLINE | — | Hilbert transform, pending |
+| HT_TRENDLINE | `HT.ht_trendline` | |
+| MAMA | `MAMA.mama` | FAMA included; fast/slow limits validated like TA-Lib |
 | KAMA | `MA.kama/kama_list` | |
 | MA | `MA.ma/3` | dispatcher over sma/ema/wma/dema/tema/trima/kama/t3 |
-| MAMA | — | pending (needs the Hilbert machinery) |
 | MAVP | `MA.mavp/5` | sma/ema types, clamped periods |
 | MIDPOINT | `MA.midpoint/midpoint_list` | |
 | MIDPRICE | `Donchian.midprice` | |
@@ -103,10 +103,21 @@ in chronological order (oldest first) with nil-padded series.
 | TYPPRICE | `PriceTransform.typprice` |
 | WCLPRICE | `PriceTransform.wclprice` |
 
-## Cycle Indicators — 0/5
+## Cycle Indicators — 5/5
 
-HT_DCPERIOD, HT_DCPHASE, HT_PHASOR, HT_SINE and HT_TRENDMODE (Hilbert
-transforms) are pending.
+| TA-Lib | TAlib | Notes |
+| --- | --- | --- |
+| HT_DCPERIOD | `HT.ht_dcperiod` | |
+| HT_DCPHASE | `HT.ht_dcphase` | |
+| HT_PHASOR | `HT.ht_phasor` | in-phase/quadrature map |
+| HT_SINE | `HT.ht_sine` | sine/lead_sine map |
+| HT_TRENDMODE | `HT.ht_trendmode` | 0/1 per bar |
+
+The whole Hilbert/MESA family (`HT` and `MAMA`) was translated from
+the TA-Lib C reference implementation and cross-verified series for
+series against a transliteration of the same source. Outputs begin
+after a fixed 63-bar warmup; TA-Lib's configurable unstable-period
+machinery is not mirrored.
 
 ## Pattern Recognition — 61/61
 
@@ -117,7 +128,10 @@ StockCharts definitions with a configurable average-body window
 (default 5); hikkake returns base setups only (TA-Lib's confirmed ±200
 levels pending).
 
-**Summary: 126 of 133 functions.** The remaining seven are the
-Hilbert-transform family — HT_TRENDLINE, HT_DCPERIOD, HT_DCPHASE,
-HT_PHASOR, HT_SINE, HT_TRENDMODE — and MAMA, which all share the MESA
-machinery and need a faithful translation from the TA-Lib C source.
+**Summary: 133 of 133 functions — full TA-Lib parity.**
+
+The Hilbert-transform family (`HT`, `MAMA`) and the candlestick
+patterns follow canonical definitions or faithful C-source
+translations as noted in their sections; the one deliberate divergence
+is `nil` instead of `0` for undefined/insufficient values, per the
+library conventions.
