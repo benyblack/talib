@@ -1,4 +1,5 @@
 defmodule TAlib.Indicators.BBands do
+  alias TAlib.Indicators.Roll
   alias TAlib.Indicators.MA
   alias TAlib.Indicators.StdDev
 
@@ -118,5 +119,79 @@ defmodule TAlib.Indicators.BBands do
     middle = sum / period
     deviation = :math.sqrt(max(sq_sum - sum * sum / period, 0) / period)
     %{upper: middle + mult * deviation, middle: middle, lower: middle - mult * deviation}
+  end
+
+  # ------------------------------------------------------------------
+  # Streaming: O(1) per price. `init` replays the history through the
+  # same sliding sums `bbands_list/3` keeps, so its series equals the
+  # batch series exactly and `next/2` continues it bit for bit.
+  # ------------------------------------------------------------------
+
+  defmodule State do
+    @moduledoc false
+    @type t :: %__MODULE__{}
+    defstruct [:period, :mult, :sums, :squares]
+  end
+
+  @doc """
+  Warm up streaming Bollinger Bands state from `history`.
+
+  Returns `{state, values}` with `values` the full bands series of
+  `history` (identical to `bbands_list/3`), and `state` ready to
+  continue it one price at a time in O(1) via `next/2`. History needs
+  at least `period` prices.
+
+  ## Examples
+
+      iex> {state, values} = TAlib.Indicators.BBands.init([1, 2, 3, 4, 5], 4, 2)
+      iex> List.last(values)
+      %{upper: 5.73606797749979, lower: 1.2639320225002102, middle: 3.5}
+      iex> {_state, %{upper: u, middle: 4.5, lower: l}} = TAlib.Indicators.BBands.next(state, 6)
+      iex> {Float.round(u, 4), Float.round(l, 4)}
+      {6.7361, 2.2639}
+  """
+  @spec init(list(number), pos_integer, number) :: {State.t(), list(map | nil)}
+  def init(prices, period \\ 20, mult \\ 2)
+
+  def init(_prices, period, _mult) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def init(_prices, _period, mult) when not is_number(mult),
+    do: raise(ArgumentError, "mult must be a number, got: #{inspect(mult)}")
+
+  def init(prices, period, mult) when is_list(prices) do
+    if length(prices) < period,
+      do: raise(ArgumentError, "init needs at least period (#{period}) prices")
+
+    state = %State{
+      period: period,
+      mult: mult,
+      sums: Roll.sum_new(period),
+      squares: Roll.sum_new(period)
+    }
+
+    Roll.replay(prices, state, &next/2)
+  end
+
+  @doc """
+  Advance streaming Bollinger Bands state by one price, in O(1):
+  `{state, %{upper: , middle: , lower: }}`.
+
+      iex> {state, _} = TAlib.Indicators.BBands.init([1, 2, 3, 4, 5], 4, 2)
+      iex> {_state, %{upper: u, middle: m, lower: l}} = TAlib.Indicators.BBands.next(state, 6)
+      iex> {Float.round(u, 4), m, Float.round(l, 4)}
+      {6.7361, 4.5, 2.2639}
+  """
+  @spec next(State.t(), number) :: {State.t(), map | nil}
+  def next(%State{period: period, mult: mult, sums: sums, squares: squares} = state, price) do
+    {sums, _} = Roll.sum_push(sums, price)
+    {squares, _} = Roll.sum_push(squares, price * price)
+    state = %{state | sums: sums, squares: squares}
+
+    if sums.filled do
+      {state, band(sums.sum, squares.sum, period, mult)}
+    else
+      {state, nil}
+    end
   end
 end

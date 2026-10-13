@@ -1,4 +1,6 @@
 defmodule TAlib.Indicators.RSI do
+  alias TAlib.Indicators.Roll
+
   @moduledoc """
   Relative Strength Index [Wikipedia](https://en.wikipedia.org/wiki/Relative_strength_index).
 
@@ -200,5 +202,98 @@ defmodule TAlib.Indicators.RSI do
       loss_avg == 0 -> 100.0
       true -> 100.0 - 100.0 / (1.0 + gain_avg / loss_avg)
     end
+  end
+
+  # ------------------------------------------------------------------
+  # Streaming: O(1) per price. `init` replays the history through the
+  # same Wilder walk `rsi_list/2` runs, so its series equals the batch
+  # series exactly and `next/2` continues it bit for bit. A window with
+  # no movement at all makes RSI undefined — `next/2` returns `nil`
+  # there, like the batch series does.
+  # ------------------------------------------------------------------
+
+  defmodule State do
+    @moduledoc false
+    @type t :: %__MODULE__{}
+    defstruct [:period, :prev, :gains, :losses, :gain_avg, :loss_avg]
+  end
+
+  @doc """
+  Warm up streaming RSI state from `history`.
+
+  Returns `{state, values}` with `values` the full RSI series of
+  `history` (identical to `rsi_list/2`), and `state` ready to continue
+  it one price at a time in O(1) via `next/2`. History needs more than
+  `period` prices (the first `period` changes form the seed).
+
+  ## Examples
+
+      iex> {state, values} = TAlib.Indicators.RSI.init([1, 2, 3, 4, 5], 3)
+      iex> values
+      [nil, nil, nil, 100.0, 100.0]
+      iex> {_state, 100.0} = TAlib.Indicators.RSI.next(state, 6)
+  """
+  @spec init(list(number), pos_integer) :: {State.t(), list(float | nil)}
+  def init(prices, period \\ 14)
+
+  def init(_prices, period) when not is_valid_period(period), do: TAlib.invalid_period!(period)
+
+  def init(prices, period) when is_list(prices) do
+    if length(prices) <= period,
+      do: raise(ArgumentError, "init needs more than period (#{period}) prices")
+
+    state = %State{
+      period: period,
+      prev: nil,
+      gains: Roll.sum_new(period),
+      losses: Roll.sum_new(period),
+      gain_avg: nil,
+      loss_avg: nil
+    }
+
+    Roll.replay(prices, state, &next/2)
+  end
+
+  @doc """
+  Advance streaming RSI state by one price, in O(1).
+
+      iex> {state, _} = TAlib.Indicators.RSI.init([1, 2, 3, 4, 5], 3)
+      iex> {_state, value} = TAlib.Indicators.RSI.next(state, 6)
+      iex> value
+      100.0
+  """
+  @spec next(State.t(), number) :: {State.t(), float | nil}
+  def next(%State{prev: nil} = state, price), do: {%{state | prev: price}, nil}
+
+  def next(
+        %State{period: period, prev: prev, gains: gains, losses: losses, gain_avg: nil} = state,
+        price
+      ) do
+    change = price - prev
+    {gains, gain_sum} = Roll.sum_push(gains, max(change, 0))
+    {losses, loss_sum} = Roll.sum_push(losses, max(-change, 0))
+    state = %{state | prev: price, gains: gains, losses: losses}
+
+    if gain_sum do
+      gain_avg = gain_sum / period
+      loss_avg = loss_sum / period
+      {%{state | gain_avg: gain_avg, loss_avg: loss_avg}, rsi_from_sums(gain_avg, loss_avg)}
+    else
+      {state, nil}
+    end
+  end
+
+  def next(
+        %State{period: period, prev: prev, gain_avg: gain_avg, loss_avg: loss_avg} = state,
+        price
+      ) do
+    change = price - prev
+    gain = max(change, 0)
+    loss = max(-change, 0)
+    gain_avg = (gain_avg * (period - 1) + gain) / period
+    loss_avg = (loss_avg * (period - 1) + loss) / period
+
+    {%{state | prev: price, gain_avg: gain_avg, loss_avg: loss_avg},
+     rsi_from_sums(gain_avg, loss_avg)}
   end
 end

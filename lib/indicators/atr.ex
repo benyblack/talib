@@ -1,4 +1,5 @@
 defmodule TAlib.Indicators.ATR do
+  alias TAlib.Indicators.Roll
   alias TAlib.Indicators.MA
 
   @moduledoc """
@@ -129,5 +130,75 @@ defmodule TAlib.Indicators.ATR do
     close = List.last(bars).close
 
     if close == 0, do: nil, else: atr(bars, period) / close * 100
+  end
+
+  # ------------------------------------------------------------------
+  # Streaming: O(1) per bar. `init` replays the history through the
+  # same True-Range/RMA arithmetic `atr_list/2` runs, so its series
+  # equals the batch series exactly and `next/2` continues it bit for
+  # bit. Like the batch functions, the first bar only contributes its
+  # close (its close-less True Range is dropped by the seeding).
+  # ------------------------------------------------------------------
+
+  defmodule State do
+    @moduledoc false
+    @type t :: %__MODULE__{}
+    defstruct [:period, :prev_close, :rma]
+  end
+
+  @doc """
+  Warm up streaming ATR state from `history`.
+
+  Returns `{state, values}` with `values` the full ATR series of
+  `history` (identical to `atr_list/2`), and `state` ready to continue
+  it one bar at a time in O(1) via `next/2`. History needs at least
+  `period + 1` bars.
+
+  ## Examples
+
+      iex> bars = [
+      ...>   %{high: 12, low: 8, close: 10},
+      ...>   %{high: 11, low: 9, close: 10},
+      ...>   %{high: 13, low: 9, close: 12}
+      ...> ]
+      iex> {state, values} = TAlib.Indicators.ATR.init(bars, 2)
+      iex> values
+      [nil, nil, 3.0]
+      iex> {_state, 3.5} = TAlib.Indicators.ATR.next(state, %{high: 14, low: 10, close: 11})
+  """
+  @spec init(list(map), pos_integer) :: {State.t(), list(float | nil)}
+  def init(bars, period \\ 14)
+
+  def init(_bars, period) when not is_valid_period(period), do: TAlib.invalid_period!(period)
+
+  def init(bars, period) when is_list(bars) do
+    if length(bars) < period + 1,
+      do: raise(ArgumentError, "init needs at least period + 1 (#{period + 1}) bars")
+
+    state = %State{period: period, prev_close: nil, rma: MA.rma_state_new(period)}
+    Roll.replay(bars, state, &next/2)
+  end
+
+  @doc """
+  Advance streaming ATR state by one bar (a map with at least `:high`,
+  `:low` and `:close`), in O(1).
+
+      iex> {state, _} = TAlib.Indicators.ATR.init([%{high: 12, low: 8, close: 10}, %{high: 11, low: 9, close: 10}, %{high: 13, low: 9, close: 12}], 2)
+      iex> {_state, value} = TAlib.Indicators.ATR.next(state, %{high: 14, low: 10, close: 11})
+      iex> value
+      3.5
+  """
+  @spec next(State.t(), map) :: {State.t(), float | nil}
+  def next(%State{prev_close: nil} = state, bar),
+    do: {%{state | prev_close: bar.close}, nil}
+
+  def next(%State{prev_close: prev_close, rma: rma} = state, %{
+        high: high,
+        low: low,
+        close: close
+      }) do
+    tr = max(high - low, max(abs(high - prev_close), abs(low - prev_close)))
+    {rma, value} = MA.rma_next(rma, tr)
+    {%{state | prev_close: close, rma: rma}, value}
   end
 end
