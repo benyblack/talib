@@ -1,4 +1,5 @@
 defmodule TAlib.Indicators.WilliamsR do
+  alias TAlib.Indicators.Roll
   alias TAlib.Indicators.Window
 
   @moduledoc """
@@ -91,5 +92,76 @@ defmodule TAlib.Indicators.WilliamsR do
       end)
 
     List.duplicate(nil, period - 1) ++ values
+  end
+
+  # ------------------------------------------------------------------
+  # Streaming: O(1) per price, rolling extremes via monotonic deques.
+  # `init` replays the history through the same deque walk
+  # `williams_r_list/2` runs, so its series equals the batch series
+  # exactly and `next/2` continues it bit for bit.
+  # ------------------------------------------------------------------
+
+  defmodule State do
+    @moduledoc false
+    @type t :: %__MODULE__{}
+    defstruct [:period, :max, :min]
+  end
+
+  @doc """
+  Warm up streaming Williams %R state from `history`.
+
+  Returns `{state, values}` with `values` the full %R series of
+  `history` (identical to `williams_r_list/2`), and `state` ready to
+  continue it one price at a time in O(1) via `next/2`. History needs
+  at least `period` prices.
+
+  ## Examples
+
+      iex> {state, values} = TAlib.Indicators.WilliamsR.init([5, 9, 3, 8, 2, 6], 3)
+      iex> values |> Enum.map(fn x -> if is_nil(x), do: nil, else: Float.round(x, 4) end)
+      [nil, nil, -100.0, -16.6667, -100.0, -33.3333]
+      iex> {_state, -25.0} = TAlib.Indicators.WilliamsR.next(state, 5)
+  """
+  @spec init(list(number), pos_integer) :: {State.t(), list(float | nil)}
+  def init(prices, period \\ 14)
+
+  def init(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def init(prices, period) when is_list(prices) do
+    if length(prices) < period,
+      do: raise(ArgumentError, "init needs at least period (#{period}) prices")
+
+    state = %State{period: period, max: Roll.max_new(period), min: Roll.min_new(period)}
+    Roll.replay(prices, state, &next/2)
+  end
+
+  @doc """
+  Advance streaming Williams %R state by one price, in O(1). A flat
+  window (no range) yields `nil`, like the batch series.
+
+      iex> {state, _} = TAlib.Indicators.WilliamsR.init([5, 9, 3, 8, 2, 6], 3)
+      iex> {_state, value} = TAlib.Indicators.WilliamsR.next(state, 5)
+      iex> value
+      -25.0
+  """
+  @spec next(State.t(), number) :: {State.t(), float | nil}
+  def next(%State{max: max, min: min} = state, price) do
+    {max, max_pair} = Roll.max_push(max, price)
+    {min, min_pair} = Roll.min_push(min, price)
+    state = %{state | max: max, min: min}
+
+    if is_nil(max_pair) do
+      {state, nil}
+    else
+      highest = elem(max_pair, 1)
+      lowest = elem(min_pair, 1)
+
+      if highest != lowest do
+        {state, (highest - price) / (highest - lowest) * -100}
+      else
+        {state, nil}
+      end
+    end
   end
 end

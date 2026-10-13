@@ -1,4 +1,5 @@
 defmodule TAlib.Indicators.Aroon do
+  alias TAlib.Indicators.Roll
   alias TAlib.Indicators.Window
 
   @moduledoc """
@@ -101,5 +102,73 @@ defmodule TAlib.Indicators.Aroon do
   def aroon_osc(prices, period) when is_list(prices) do
     %{up: up, down: down} = aroon(prices, period)
     up - down
+  end
+
+  # ------------------------------------------------------------------
+  # Streaming: O(1) per price. The monotonic deques carry each
+  # extreme's tick along with its value, so the days-since-extreme
+  # falls out the same way `Window.extremes/2` produces it for
+  # `aroon_list/2`; `init`'s series equals the batch series exactly
+  # and `next/2` continues it bit for bit.
+  # ------------------------------------------------------------------
+
+  defmodule State do
+    @moduledoc false
+    @type t :: %__MODULE__{}
+    defstruct [:period, :max, :min]
+  end
+
+  @doc """
+  Warm up streaming Aroon state from `history` (closing prices).
+
+  Returns `{state, values}` with `values` the full `{up, down}` series
+  of `history` (identical to `aroon_list/2`), and `state` ready to
+  continue it one price at a time in O(1) via `next/2`. History needs
+  at least `period + 1` prices.
+
+  ## Examples
+
+      iex> {state, values} = TAlib.Indicators.Aroon.init([5, 3, 8, 2, 6, 9, 4], 3)
+      iex> Enum.take(values, -2)
+      [{100.0, 33.333333333333336}, {66.66666666666667, 0.0}]
+      iex> {_state, {100.0, 66.66666666666667}} = TAlib.Indicators.Aroon.next(state, 10)
+  """
+  @spec init(list(number), pos_integer) :: {State.t(), list({float, float} | nil)}
+  def init(prices, period \\ 14)
+
+  def init(_prices, period) when not is_valid_period(period),
+    do: TAlib.invalid_period!(period)
+
+  def init(prices, period) when is_list(prices) do
+    if length(prices) < period + 1,
+      do: raise(ArgumentError, "init needs at least period + 1 (#{period + 1}) prices")
+
+    state = %State{period: period, max: Roll.max_new(period + 1), min: Roll.min_new(period + 1)}
+    Roll.replay(prices, state, &next/2)
+  end
+
+  @doc """
+  Advance streaming Aroon state by one price, in O(1):
+  `{state, {up, down}}`.
+
+      iex> {state, _} = TAlib.Indicators.Aroon.init([5, 3, 8, 2, 6, 9, 4], 3)
+      iex> {_state, value} = TAlib.Indicators.Aroon.next(state, 10)
+      iex> value
+      {100.0, 66.66666666666667}
+  """
+  @spec next(State.t(), number) :: {State.t(), {float, float} | nil}
+  def next(%State{period: period, max: max, min: min} = state, price) do
+    {max, max_pair} = Roll.max_push(max, price)
+    {min, min_pair} = Roll.min_push(min, price)
+    state = %{state | max: max, min: min}
+
+    if is_nil(max_pair) do
+      {state, nil}
+    else
+      window_start = max.tick - period
+      up = 100 * (elem(max_pair, 0) - window_start) / period
+      down = 100 * (elem(min_pair, 0) - window_start) / period
+      {state, {up, down}}
+    end
   end
 end
