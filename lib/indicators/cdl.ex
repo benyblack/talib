@@ -40,7 +40,112 @@ defmodule TAlib.Indicators.CDL do
   # range added, the leaving one subtracted).
   # ------------------------------------------------------------------
 
-  defp context(bars) do
+  @pattern_names [
+    :two_crows,
+    :three_black_crows,
+    :three_inside,
+    :three_line_strike,
+    :three_outside,
+    :three_stars_in_south,
+    :three_white_soldiers,
+    :abandoned_baby,
+    :advance_block,
+    :belt_hold,
+    :breakaway,
+    :closing_marubozu,
+    :conceal_babys_wall,
+    :counterattack,
+    :dark_cloud_cover,
+    :doji,
+    :doji_star,
+    :dragonfly_doji,
+    :engulfing,
+    :evening_doji_star,
+    :evening_star,
+    :gap_side_side_white,
+    :gravestone_doji,
+    :hammer,
+    :hanging_man,
+    :harami,
+    :harami_cross,
+    :high_wave,
+    :hikkake,
+    :hikkake_mod,
+    :homing_pigeon,
+    :identical_3_crows,
+    :in_neck,
+    :inverted_hammer,
+    :kicking,
+    :kicking_by_length,
+    :ladder_bottom,
+    :long_legged_doji,
+    :long_line,
+    :marubozu,
+    :matching_low,
+    :mat_hold,
+    :morning_doji_star,
+    :morning_star,
+    :on_neck,
+    :piercing,
+    :rickshaw_man,
+    :rise_fall_3_methods,
+    :separating_lines,
+    :shooting_star,
+    :short_line,
+    :spinning_top,
+    :stalled_pattern,
+    :stick_sandwich,
+    :takuri,
+    :tasuki_gap,
+    :thrusting,
+    :tristar,
+    :unique_3_river,
+    :upside_gap_2crows,
+    :xside_gap_3methods
+  ]
+
+  # A prebuilt candle context: pass it to any pattern (or `scan/2`) to
+  # compute the trailing sums once for a whole set of patterns.
+  defmodule Ctx do
+    @moduledoc false
+    defstruct [:raw, :bars]
+  end
+
+  @doc """
+  Build the candle context of `bars` once, for reuse across several
+  pattern calls (each pattern called with plain bars rebuilds it).
+
+      iex> ctx = TAlib.Indicators.CDL.context([%{open: 1, high: 2, low: 0.5, close: 1.5}])
+      iex> TAlib.Indicators.CDL.doji(ctx)
+      [0]
+  """
+  @spec context(list(map)) :: %Ctx{}
+  def context(bars), do: %Ctx{raw: bars, bars: build_context(bars)}
+
+  @doc """
+  Score several patterns over one shared context — equivalent to
+  calling each pattern on `bars`, without rebuilding the trailing
+  sums per pattern. With no pattern list, scores all 61.
+
+      iex> bars = Enum.map(0..9, fn _ -> %{open: 0.0, high: 2.0, low: 0.0, close: 1.0} end)
+      iex> TAlib.Indicators.CDL.scan(bars ++ [%{open: 1.0, high: 2.0, low: 0.0, close: 1.01}], [:doji])[:doji] |> List.last()
+      100
+  """
+  @spec scan(list(map)) :: %{atom => list(integer)}
+  @spec scan(list(map), list(atom)) :: %{atom => list(integer)}
+  def scan(bars, patterns \\ @pattern_names) do
+    ctx = context(bars)
+    Map.new(patterns, fn name -> {name, apply(__MODULE__, name, [ctx])} end)
+  end
+
+  defp wrap(%Ctx{bars: ctx}), do: ctx
+  defp wrap(bars), do: build_context(bars)
+
+  # hikkake reads the raw bar fields, not the candle context.
+  defp raw_of(%Ctx{raw: raw}), do: raw
+  defp raw_of(bars), do: bars
+
+  defp build_context(bars) do
     ctx =
       Enum.map(bars, fn bar ->
         %{
@@ -77,23 +182,29 @@ defmodule TAlib.Indicators.CDL do
   # step records the current sum first, then slides the window by
   # adding the entering range and subtracting the leaving one.
   defp sliding_sums(ctx, n, key) do
-    value = value_fun(key)
+    ctx |> Enum.map(value_fun(key)) |> sums(n)
+  end
 
-    {reversed, _} =
-      Enum.reduce(ctx, {[], {0.0, []}}, fn bar, {acc, {sum, past}} ->
-        v = value.(bar)
+  # sums[k] = the values summed over the n bars before k (0.0 for the
+  # first n bars — no pattern reads them, its lookback covers the
+  # warmup); after the fill the window slides by adding the entering
+  # value and subtracting the leaving one, `older` walking the same
+  # list one window behind.
+  defp sums(values, n) do
+    case Enum.split(values, n) do
+      {_window, []} ->
+        List.duplicate(0.0, length(values))
 
-        {next_sum, next_past} =
-          if length(past) == n do
-            {sum + (v - hd(past)), tl(past) ++ [v]}
-          else
-            {sum + v, past ++ [v]}
-          end
+      {window, rest} ->
+        seed = Enum.sum(window)
 
-        {[sum | acc], {next_sum, next_past}}
-      end)
+        {reversed, _older} =
+          Enum.reduce(rest, {[seed], values}, fn v, {[latest | _] = acc, [leaving | older]} ->
+            {[latest + (v - leaving) | acc], older}
+          end)
 
-    Enum.reverse(reversed)
+        List.duplicate(0.0, n) ++ Enum.reverse(reversed)
+    end
   end
 
   defp value_fun(:body), do: fn bar -> bar.body end
@@ -132,15 +243,13 @@ defmodule TAlib.Indicators.CDL do
   # it), zero-padded before that.
   # ------------------------------------------------------------------
 
-  defp score(bars, lookback, window, fun) do
-    ctx = context(bars)
-
+  defp score(ctx, lookback, window, fun) do
     windows =
       ctx
       |> Enum.chunk_every(window, 1, :discard)
       |> Enum.drop(max(lookback - window + 1, 0))
 
-    List.duplicate(0, min(lookback, length(bars))) ++ Enum.map(windows, fun)
+    List.duplicate(0, min(lookback, length(ctx))) ++ Enum.map(windows, fun)
   end
 
   @doc """
@@ -153,7 +262,7 @@ defmodule TAlib.Indicators.CDL do
   @spec two_crows(list(map)) :: list(integer)
   def two_crows(bars),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if white(a) and body_long(a) and black(b) and gap_up(b, a) and black(c) and
              c.o < b.o and c.o > b.c and c.c > a.o and c.c < a.c,
            do: -100,
@@ -170,7 +279,7 @@ defmodule TAlib.Indicators.CDL do
   @spec three_black_crows(list(map)) :: list(integer)
   def three_black_crows(bars),
     do:
-      score(bars, 13, 4, fn [w, a, b, c] ->
+      score(wrap(bars), 13, 4, fn [w, a, b, c] ->
         if white(w) and black(a) and black(b) and black(c) and
              a.o < w.o and a.o > w.c and b.o < a.o and b.o > a.c and
              w.h > a.c and a.c > b.c and b.c > c.c and
@@ -190,7 +299,7 @@ defmodule TAlib.Indicators.CDL do
   @spec three_inside(list(map)) :: list(integer)
   def three_inside(bars),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         opposite =
           (white(a) and black(c) and c.c < a.o) or (black(a) and white(c) and c.c > a.o)
 
@@ -211,7 +320,7 @@ defmodule TAlib.Indicators.CDL do
   @spec three_line_strike(list(map)) :: list(integer)
   def three_line_strike(bars),
     do:
-      score(bars, 8, 4, fn [a, b, c, d] ->
+      score(wrap(bars), 8, 4, fn [a, b, c, d] ->
         same = white(a) == white(b) and white(b) == white(c) and white(d) != white(c)
 
         direction =
@@ -237,7 +346,7 @@ defmodule TAlib.Indicators.CDL do
   @spec three_outside(list(map)) :: list(integer)
   def three_outside(bars),
     do:
-      score(bars, 3, 3, fn [a, b, c] ->
+      score(wrap(bars), 3, 3, fn [a, b, c] ->
         bull = white(b) and black(a) and b.c > a.o and b.o < a.c and c.c > b.c
         bear = black(b) and white(a) and b.o > a.c and b.c < a.o and c.c < b.c
 
@@ -255,7 +364,7 @@ defmodule TAlib.Indicators.CDL do
   @spec three_stars_in_south(list(map)) :: list(integer)
   def three_stars_in_south(bars),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if black(a) and black(b) and black(c) and body_long(a) and
              a.lo > shadow_long(a) and
              b.body < a.body and b.o > a.c and b.o <= a.h and b.l < a.c and b.l >= a.l and
@@ -278,7 +387,7 @@ defmodule TAlib.Indicators.CDL do
   @spec three_white_soldiers(list(map)) :: list(integer)
   def three_white_soldiers(bars),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if white(a) and a.up < shadow_very_short(a) and white(b) and
              b.up < shadow_very_short(b) and white(c) and c.up < shadow_very_short(c) and
              c.c > b.c and b.c > a.c and
@@ -301,7 +410,7 @@ defmodule TAlib.Indicators.CDL do
   @spec abandoned_baby(list(map), number) :: list(integer)
   def abandoned_baby(bars, penetration \\ 0.3),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         bull =
           white(a) and black(c) and c.c < a.c - a.body * penetration and
             b.l > a.h and c.h < b.l
@@ -325,7 +434,7 @@ defmodule TAlib.Indicators.CDL do
   @spec advance_block(list(map)) :: list(integer)
   def advance_block(bars),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         blocked =
           (b.body < a.body - far(a) and c.body < b.body + near(b)) or
             c.body < b.body - far(b) or
@@ -353,7 +462,7 @@ defmodule TAlib.Indicators.CDL do
   @spec belt_hold(list(map)) :: list(integer)
   def belt_hold(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         shadowed =
           (white(b) and b.lo < shadow_very_short(b)) or
             (black(b) and b.up < shadow_very_short(b))
@@ -371,7 +480,7 @@ defmodule TAlib.Indicators.CDL do
   @spec breakaway(list(map)) :: list(integer)
   def breakaway(bars),
     do:
-      score(bars, 14, 5, fn [a, b, c, d, e] ->
+      score(wrap(bars), 14, 5, fn [a, b, c, d, e] ->
         colors =
           white(a) == white(b) and white(b) == white(d) and white(e) != white(d)
 
@@ -399,7 +508,7 @@ defmodule TAlib.Indicators.CDL do
   @spec closing_marubozu(list(map)) :: list(integer)
   def closing_marubozu(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         shadowed =
           (white(b) and b.up < shadow_very_short(b)) or
             (black(b) and b.lo < shadow_very_short(b))
@@ -417,7 +526,7 @@ defmodule TAlib.Indicators.CDL do
   @spec conceal_babys_wall(list(map)) :: list(integer)
   def conceal_babys_wall(bars),
     do:
-      score(bars, 13, 4, fn [a, b, c, d] ->
+      score(wrap(bars), 13, 4, fn [a, b, c, d] ->
         marubozu = fn x -> x.lo < shadow_very_short(x) and x.up < shadow_very_short(x) end
 
         if black(a) and black(b) and black(c) and black(d) and
@@ -438,7 +547,7 @@ defmodule TAlib.Indicators.CDL do
   @spec counterattack(list(map)) :: list(integer)
   def counterattack(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         if white(a) != white(b) and body_long(a) and body_long(b) and
              b.c <= a.c + equal_tol(a) and b.c >= a.c - equal_tol(a),
            do: if(white(b), do: 100, else: -100),
@@ -455,7 +564,7 @@ defmodule TAlib.Indicators.CDL do
   @spec dark_cloud_cover(list(map), number) :: list(integer)
   def dark_cloud_cover(bars, penetration \\ 0.5),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         if white(a) and body_long(a) and black(b) and b.o > a.h and b.c > a.o and
              b.c < a.c - a.body * penetration,
            do: -100,
@@ -472,7 +581,7 @@ defmodule TAlib.Indicators.CDL do
   """
   @spec doji(list(map)) :: list(integer)
   def doji(bars),
-    do: score(bars, 10, 1, fn [b] -> if doji_body(b), do: 100, else: 0 end)
+    do: score(wrap(bars), 10, 1, fn [b] -> if doji_body(b), do: 100, else: 0 end)
 
   @doc """
   Doji Star: a long candle then a doji gapping away from its body.
@@ -483,7 +592,7 @@ defmodule TAlib.Indicators.CDL do
   @spec doji_star(list(map)) :: list(integer)
   def doji_star(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         gapped = (white(a) and gap_up(b, a)) or (black(a) and gap_down(b, a))
 
         if body_long(a) and doji_body(b) and gapped,
@@ -501,7 +610,7 @@ defmodule TAlib.Indicators.CDL do
   @spec dragonfly_doji(list(map)) :: list(integer)
   def dragonfly_doji(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         if doji_body(b) and b.up < shadow_very_short(b) and
              b.lo > shadow_very_short(b),
            do: 100,
@@ -518,7 +627,7 @@ defmodule TAlib.Indicators.CDL do
   @spec engulfing(list(map)) :: list(integer)
   def engulfing(bars),
     do:
-      score(bars, 2, 2, fn [a, b] ->
+      score(wrap(bars), 2, 2, fn [a, b] ->
         bull =
           white(b) and black(a) and
             ((b.c >= a.o and b.o < a.c) or (b.c > a.o and b.o <= a.c))
@@ -544,7 +653,7 @@ defmodule TAlib.Indicators.CDL do
   @spec evening_doji_star(list(map), number) :: list(integer)
   def evening_doji_star(bars, penetration \\ 0.3),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if white(a) and black(c) and gap_up(b, a) and
              c.c < a.c - a.body * penetration and
              body_long(a) and doji_body(b) and not body_short(c),
@@ -562,7 +671,7 @@ defmodule TAlib.Indicators.CDL do
   @spec evening_star(list(map), number) :: list(integer)
   def evening_star(bars, penetration \\ 0.3),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if white(a) and black(c) and gap_up(b, a) and
              c.c < a.c - a.body * penetration and
              body_long(a) and body_short(b) and not body_short(c),
@@ -580,7 +689,7 @@ defmodule TAlib.Indicators.CDL do
   @spec gap_side_side_white(list(map)) :: list(integer)
   def gap_side_side_white(bars),
     do:
-      score(bars, 7, 3, fn [a, b, c] ->
+      score(wrap(bars), 7, 3, fn [a, b, c] ->
         both =
           (gap_up(b, a) and gap_up(c, a)) or (gap_down(b, a) and gap_down(c, a))
 
@@ -601,7 +710,7 @@ defmodule TAlib.Indicators.CDL do
   @spec gravestone_doji(list(map)) :: list(integer)
   def gravestone_doji(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         if doji_body(b) and b.lo < shadow_very_short(b) and
              b.up > shadow_very_short(b),
            do: 100,
@@ -618,7 +727,7 @@ defmodule TAlib.Indicators.CDL do
   @spec hammer(list(map)) :: list(integer)
   def hammer(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         if body_short(b) and b.lo > shadow_long(b) and b.up < shadow_very_short(b) and
              minb(b) <= a.l + near(a),
            do: 100,
@@ -635,7 +744,7 @@ defmodule TAlib.Indicators.CDL do
   @spec hanging_man(list(map)) :: list(integer)
   def hanging_man(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         if body_short(b) and b.lo > shadow_long(b) and b.up < shadow_very_short(b) and
              minb(b) >= a.h - near(a),
            do: -100,
@@ -652,7 +761,7 @@ defmodule TAlib.Indicators.CDL do
   @spec harami(list(map)) :: list(integer)
   def harami(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         cond do
           not (body_long(a) and body_short(b)) ->
             0
@@ -678,7 +787,7 @@ defmodule TAlib.Indicators.CDL do
   @spec harami_cross(list(map)) :: list(integer)
   def harami_cross(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         cond do
           not (body_long(a) and doji_body(b)) ->
             0
@@ -704,7 +813,7 @@ defmodule TAlib.Indicators.CDL do
   @spec high_wave(list(map)) :: list(integer)
   def high_wave(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         if body_short(b) and b.up > shadow_very_long(b) and b.lo > shadow_very_long(b),
           do: if(white(b), do: 100, else: -100),
           else: 0
@@ -728,7 +837,7 @@ defmodule TAlib.Indicators.CDL do
   """
   @spec hikkake(list(map)) :: list(integer)
   def hikkake(bars) do
-    tuple = List.to_tuple(bars)
+    tuple = bars |> raw_of() |> List.to_tuple()
     size = tuple_size(tuple)
 
     {_, state} =
@@ -801,7 +910,7 @@ defmodule TAlib.Indicators.CDL do
   """
   @spec hikkake_mod(list(map)) :: list(integer)
   def hikkake_mod(bars) do
-    ctx = context(bars)
+    ctx = wrap(bars)
     tuple = List.to_tuple(ctx)
     size = tuple_size(tuple)
 
@@ -866,7 +975,7 @@ defmodule TAlib.Indicators.CDL do
   @spec homing_pigeon(list(map)) :: list(integer)
   def homing_pigeon(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         if black(a) and black(b) and body_long(a) and body_short(b) and
              b.o < a.o and b.c > a.c,
            do: 100,
@@ -883,7 +992,7 @@ defmodule TAlib.Indicators.CDL do
   @spec identical_3_crows(list(map)) :: list(integer)
   def identical_3_crows(bars),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if black(a) and a.lo < shadow_very_short(a) and
              black(b) and b.lo < shadow_very_short(b) and
              black(c) and c.lo < shadow_very_short(c) and
@@ -904,7 +1013,7 @@ defmodule TAlib.Indicators.CDL do
   @spec in_neck(list(map)) :: list(integer)
   def in_neck(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         if black(a) and body_long(a) and white(b) and b.o < a.l and
              b.c <= a.c + equal_tol(a) and b.c >= a.c,
            do: -100,
@@ -921,7 +1030,7 @@ defmodule TAlib.Indicators.CDL do
   @spec inverted_hammer(list(map)) :: list(integer)
   def inverted_hammer(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         if gap_down(b, a) and body_short(b) and b.up > shadow_long(b) and
              b.lo < shadow_very_short(b),
            do: 100,
@@ -937,7 +1046,7 @@ defmodule TAlib.Indicators.CDL do
   @spec kicking(list(map)) :: list(integer)
   def kicking(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         marubozu = fn x ->
           body_long(x) and x.up < shadow_very_short(x) and x.lo < shadow_very_short(x)
         end
@@ -959,7 +1068,7 @@ defmodule TAlib.Indicators.CDL do
   @spec kicking_by_length(list(map)) :: list(integer)
   def kicking_by_length(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         marubozu = fn x ->
           body_long(x) and x.up < shadow_very_short(x) and x.lo < shadow_very_short(x)
         end
@@ -982,7 +1091,7 @@ defmodule TAlib.Indicators.CDL do
   @spec ladder_bottom(list(map)) :: list(integer)
   def ladder_bottom(bars),
     do:
-      score(bars, 14, 5, fn [a, b, c, d, e] ->
+      score(wrap(bars), 14, 5, fn [a, b, c, d, e] ->
         if black(a) and black(b) and black(c) and
              a.o > b.o and b.o > c.o and a.c > b.c and b.c > c.c and
              black(d) and d.up > shadow_very_short(d) and
@@ -1001,7 +1110,7 @@ defmodule TAlib.Indicators.CDL do
   @spec long_legged_doji(list(map)) :: list(integer)
   def long_legged_doji(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         if doji_body(b) and (b.lo > shadow_long(b) or b.up > shadow_long(b)),
           do: 100,
           else: 0
@@ -1017,7 +1126,7 @@ defmodule TAlib.Indicators.CDL do
   @spec long_line(list(map)) :: list(integer)
   def long_line(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         if body_long(b) and b.up < shadow_short(b) and b.lo < shadow_short(b),
           do: if(white(b), do: 100, else: -100),
           else: 0
@@ -1033,7 +1142,7 @@ defmodule TAlib.Indicators.CDL do
   @spec marubozu(list(map)) :: list(integer)
   def marubozu(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         if body_long(b) and b.up < shadow_very_short(b) and b.lo < shadow_very_short(b),
           do: if(white(b), do: 100, else: -100),
           else: 0
@@ -1048,7 +1157,7 @@ defmodule TAlib.Indicators.CDL do
   @spec matching_low(list(map)) :: list(integer)
   def matching_low(bars),
     do:
-      score(bars, 6, 2, fn [a, b] ->
+      score(wrap(bars), 6, 2, fn [a, b] ->
         if black(a) and black(b) and
              b.c <= a.c + equal_tol(a) and b.c >= a.c - equal_tol(a),
            do: 100,
@@ -1065,7 +1174,7 @@ defmodule TAlib.Indicators.CDL do
   @spec mat_hold(list(map), number) :: list(integer)
   def mat_hold(bars, penetration \\ 0.5),
     do:
-      score(bars, 14, 5, fn [a, b, c, d, e] ->
+      score(wrap(bars), 14, 5, fn [a, b, c, d, e] ->
         if white(a) and black(b) and white(e) and gap_up(b, a) and
              minb(c) < a.c and minb(d) < a.c and
              minb(c) > a.c - a.body * penetration and
@@ -1087,7 +1196,7 @@ defmodule TAlib.Indicators.CDL do
   @spec morning_doji_star(list(map), number) :: list(integer)
   def morning_doji_star(bars, penetration \\ 0.3),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if black(a) and white(c) and gap_down(b, a) and
              c.c > a.body * penetration + a.c and
              body_long(a) and doji_body(b) and not body_short(c),
@@ -1105,7 +1214,7 @@ defmodule TAlib.Indicators.CDL do
   @spec morning_star(list(map), number) :: list(integer)
   def morning_star(bars, penetration \\ 0.3),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if black(a) and white(c) and gap_down(b, a) and
              c.c > a.body * penetration + a.c and
              body_long(a) and body_short(b) and not body_short(c),
@@ -1123,7 +1232,7 @@ defmodule TAlib.Indicators.CDL do
   @spec on_neck(list(map)) :: list(integer)
   def on_neck(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         if black(a) and body_long(a) and white(b) and b.o < a.l and
              b.c <= a.l + equal_tol(a) and b.c >= a.l - equal_tol(a),
            do: -100,
@@ -1140,7 +1249,7 @@ defmodule TAlib.Indicators.CDL do
   @spec piercing(list(map), number) :: list(integer)
   def piercing(bars, penetration \\ 0.5),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         if black(a) and body_long(a) and white(b) and body_long(b) and
              b.o < a.l and b.c < a.o and b.c > a.body * penetration + a.c,
            do: 100,
@@ -1157,7 +1266,7 @@ defmodule TAlib.Indicators.CDL do
   @spec rickshaw_man(list(map)) :: list(integer)
   def rickshaw_man(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         midpoint = b.l + (b.h - b.l) / 2
 
         if doji_body(b) and b.lo > shadow_long(b) and b.up > shadow_long(b) and
@@ -1176,7 +1285,7 @@ defmodule TAlib.Indicators.CDL do
   @spec rise_fall_3_methods(list(map)) :: list(integer)
   def rise_fall_3_methods(bars),
     do:
-      score(bars, 14, 5, fn [a, b, c, d, e] ->
+      score(wrap(bars), 14, 5, fn [a, b, c, d, e] ->
         colors =
           white(a) != white(b) and white(b) == white(c) and white(c) == white(d) and
             white(d) != white(e)
@@ -1208,7 +1317,7 @@ defmodule TAlib.Indicators.CDL do
   @spec separating_lines(list(map)) :: list(integer)
   def separating_lines(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         belt =
           (white(b) and b.lo < shadow_very_short(b)) or
             (black(b) and b.up < shadow_very_short(b))
@@ -1230,7 +1339,7 @@ defmodule TAlib.Indicators.CDL do
   @spec shooting_star(list(map)) :: list(integer)
   def shooting_star(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         if gap_up(b, a) and body_short(b) and b.up > shadow_long(b) and
              b.lo < shadow_very_short(b),
            do: -100,
@@ -1247,7 +1356,7 @@ defmodule TAlib.Indicators.CDL do
   @spec short_line(list(map)) :: list(integer)
   def short_line(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         if body_short(b) and b.up < shadow_short(b) and b.lo < shadow_short(b),
           do: if(white(b), do: 100, else: -100),
           else: 0
@@ -1263,7 +1372,7 @@ defmodule TAlib.Indicators.CDL do
   @spec spinning_top(list(map)) :: list(integer)
   def spinning_top(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         if b.up > b.body and b.lo > b.body and body_short(b),
           do: if(white(b), do: 100, else: -100),
           else: 0
@@ -1279,7 +1388,7 @@ defmodule TAlib.Indicators.CDL do
   @spec stalled_pattern(list(map)) :: list(integer)
   def stalled_pattern(bars),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if white(a) and white(b) and white(c) and
              c.c > b.c and b.c > a.c and
              body_long(a) and body_long(b) and
@@ -1301,7 +1410,7 @@ defmodule TAlib.Indicators.CDL do
   @spec stick_sandwich(list(map)) :: list(integer)
   def stick_sandwich(bars),
     do:
-      score(bars, 7, 3, fn [a, b, c] ->
+      score(wrap(bars), 7, 3, fn [a, b, c] ->
         if black(a) and white(b) and black(c) and b.l > a.c and
              c.c <= a.c + equal_tol(a) and c.c >= a.c - equal_tol(a),
            do: 100,
@@ -1318,7 +1427,7 @@ defmodule TAlib.Indicators.CDL do
   @spec takuri(list(map)) :: list(integer)
   def takuri(bars),
     do:
-      score(bars, 10, 1, fn [b] ->
+      score(wrap(bars), 10, 1, fn [b] ->
         if doji_body(b) and b.up < shadow_very_short(b) and
              b.lo > shadow_very_long(b),
            do: 100,
@@ -1335,7 +1444,7 @@ defmodule TAlib.Indicators.CDL do
   @spec tasuki_gap(list(map)) :: list(integer)
   def tasuki_gap(bars),
     do:
-      score(bars, 7, 3, fn [a, b, c] ->
+      score(wrap(bars), 7, 3, fn [a, b, c] ->
         up =
           gap_up(b, a) and white(b) and black(c) and
             c.o < b.c and c.o > b.o and c.c < b.o and c.c > maxb(a) and
@@ -1359,7 +1468,7 @@ defmodule TAlib.Indicators.CDL do
   @spec thrusting(list(map)) :: list(integer)
   def thrusting(bars),
     do:
-      score(bars, 11, 2, fn [a, b] ->
+      score(wrap(bars), 11, 2, fn [a, b] ->
         if black(a) and body_long(a) and white(b) and b.o < a.l and
              b.c > a.c + equal_tol(a) and b.c <= a.body * 0.5 + a.c,
            do: -100,
@@ -1376,7 +1485,7 @@ defmodule TAlib.Indicators.CDL do
   @spec tristar(list(map)) :: list(integer)
   def tristar(bars),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if doji_body(a) and b.body <= 0.1 * (a.hl10 / 10) and
              c.body <= 0.1 * (a.hl10 / 10) do
           cond do
@@ -1399,7 +1508,7 @@ defmodule TAlib.Indicators.CDL do
   @spec unique_3_river(list(map)) :: list(integer)
   def unique_3_river(bars),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if black(a) and black(b) and white(c) and
              b.c > a.c and b.o <= a.o and b.l < a.l and c.o > b.l and
              body_long(a) and body_short(c),
@@ -1417,7 +1526,7 @@ defmodule TAlib.Indicators.CDL do
   @spec upside_gap_2crows(list(map)) :: list(integer)
   def upside_gap_2crows(bars),
     do:
-      score(bars, 12, 3, fn [a, b, c] ->
+      score(wrap(bars), 12, 3, fn [a, b, c] ->
         if white(a) and body_long(a) and black(b) and body_short(b) and
              gap_up(b, a) and black(c) and
              c.o > b.o and c.c < b.c and c.c > a.c,
@@ -1435,7 +1544,7 @@ defmodule TAlib.Indicators.CDL do
   @spec xside_gap_3methods(list(map)) :: list(integer)
   def xside_gap_3methods(bars),
     do:
-      score(bars, 2, 3, fn [a, b, c] ->
+      score(wrap(bars), 2, 3, fn [a, b, c] ->
         gapped = (white(a) and gap_up(b, a)) or (black(a) and gap_down(b, a))
 
         if white(a) == white(b) and white(b) != white(c) and

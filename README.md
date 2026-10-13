@@ -23,7 +23,8 @@ cross-verified series for series.
 - Candlestick patterns: all 61 TA-Lib CDL functions via `TAlib.Indicators.CDL`,
   scored per bar (+100 bullish / -100 bearish / 0 none, with TA-Lib's
   ±200 hikkake confirmations and ±80 equal-touch levels), verified
-  integer-exact against the C library
+  integer-exact against the C library; `CDL.scan/2` scores many
+  patterns over one shared candle context
 - Generic moving-average dispatch (`MA.ma/3`), variable-period MA (`mavp`),
   `MACD.macd_ext/macd_fix`, extended Parabolic SAR
 - Cycle indicators: the full Hilbert-transform family (`HT.ht_trendline`,

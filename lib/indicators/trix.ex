@@ -83,8 +83,12 @@ defmodule TAlib.Indicators.TRIX do
       |> MA.ema_list(period)
       |> Enum.reject(&is_nil/1)
 
-    triple_ema
-    |> Enum.chunk_every(2, 1, :discard)
-    |> Enum.map(fn [prev, current] -> (current / prev - 1) * 100 end)
+    triple_ema |> percent_changes([])
   end
+
+  defp percent_changes([], acc), do: Enum.reverse(acc)
+  defp percent_changes([_single], acc), do: Enum.reverse(acc)
+
+  defp percent_changes([prev, current | rest], acc),
+    do: percent_changes([current | rest], [(current / prev - 1) * 100 | acc])
 end

@@ -87,16 +87,36 @@ defmodule TAlib.Indicators.BBands do
     do: List.duplicate(nil, length(prices))
 
   def bbands_list(prices, period, mult) when is_list(prices) do
-    bands =
-      prices
-      |> Enum.chunk_every(period, 1, :discard)
-      |> Enum.map(fn window ->
-        middle = MA.sma(window, period)
-        deviation = StdDev.std_dev(window, period)
-
-        %{upper: middle + mult * deviation, middle: middle, lower: middle - mult * deviation}
-      end)
-
+    bands = sliding_bands(prices, period, mult)
     List.duplicate(nil, period - 1) ++ bands
+  end
+
+  # One pass with the same sliding sum and sum-of-squares the StdDev
+  # walk keeps, so each bar costs O(1) instead of re-reading its
+  # window: middle from the sliding sum, deviation from the sliding
+  # sum of squares (`StdDev.std_dev_list`'s arithmetic exactly).
+  defp sliding_bands(prices, period, mult) do
+    window = Enum.take(prices, period)
+    sum = Enum.sum(window)
+    sq_sum = Enum.reduce(window, 0, fn price, acc -> acc + price * price end)
+
+    {bands, _sum, _sq, _older} =
+      Enum.reduce(
+        Enum.drop(prices, period),
+        {[band(sum, sq_sum, period, mult)], sum, sq_sum, prices},
+        fn price, {acc, sum, sq_sum, [leaving | older]} ->
+          sum = sum - leaving + price
+          sq_sum = sq_sum - leaving * leaving + price * price
+          {[band(sum, sq_sum, period, mult) | acc], sum, sq_sum, older}
+        end
+      )
+
+    Enum.reverse(bands)
+  end
+
+  defp band(sum, sq_sum, period, mult) do
+    middle = sum / period
+    deviation = :math.sqrt(max(sq_sum - sum * sum / period, 0) / period)
+    %{upper: middle + mult * deviation, middle: middle, lower: middle - mult * deviation}
   end
 end

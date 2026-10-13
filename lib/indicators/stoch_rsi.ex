@@ -1,4 +1,5 @@
 defmodule TAlib.Indicators.StochRSI do
+  alias TAlib.Indicators.Window
   alias TAlib.Indicators.RSI
 
   @moduledoc """
@@ -75,20 +76,29 @@ defmodule TAlib.Indicators.StochRSI do
 
   defp stoch_rsi_series(prices, rsi_period, stoch_period) do
     rsis = prices |> RSI.rsi_list(rsi_period) |> Enum.reject(&is_nil/1)
-
-    values =
-      rsis
-      |> Enum.chunk_every(stoch_period, 1, :discard)
-      |> Enum.map(fn window ->
-        range = Enum.max(window) - Enum.min(window)
-
-        if range == 0 do
-          nil
-        else
-          (List.last(window) - Enum.min(window)) / range * 100
-        end
-      end)
+    {values, _} = walk_stoch(rsis, stoch_period)
 
     List.duplicate(nil, length(prices) - length(values)) ++ values
+  end
+
+  defp walk_stoch(rsis, stoch_period) do
+    case Window.maxes_mins(rsis, stoch_period) do
+      nil ->
+        {[], nil}
+
+      mms ->
+        values =
+          mms
+          |> Enum.zip(Enum.drop(rsis, stoch_period - 1))
+          |> Enum.map(fn
+            {{highest, lowest}, last} when highest != lowest ->
+              (last - lowest) / (highest - lowest) * 100
+
+            _ ->
+              nil
+          end)
+
+        {values, nil}
+    end
   end
 end

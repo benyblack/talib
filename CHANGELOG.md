@@ -5,6 +5,38 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-10-13
+
+The performance release: the windowed indicators became single-pass
+and candlestick scanning gained a shared context, with every value
+still bar-for-bar identical to the TA-Lib C library (re-verified by
+the value audit on fresh fixtures; see `docs/BENCHMARKS.md`).
+
+### Changed
+
+- **Bollinger Bands** ride one sliding sum/sum-of-squares pass
+  instead of re-reading each window: ~11x faster at 100k points,
+  from 226x the C library's time down to 28x.
+- **Aroon, Williams %R, stochastic %K, Midpoint, Donchian and
+  StochRSI** use monotonic deques (`TAlib.Indicators.Window`) for
+  their rolling extremes: Aroon ~4x, %R/stochastic/midpoint ~2x
+  faster, exact same values (extremes are exact, no float drift).
+- **CCI** keeps TA-Lib's windowed mean-deviation walk but indexes a
+  tuple instead of allocating one window list per bar (~3x faster).
+- **RSI/CMO/TRIX/MFI** build their consecutive changes with one
+  pairwise walk instead of a two-element window per bar (RSI ~1.6x).
+- **DEMA/TEMA/T3** chain unpadded EMA walks (no nil-padding/reject
+  passes between stages).
+- Candlestick thresholds are unchanged; the trailing sums just slide
+  without per-step queue maintenance.
+
+### Added
+
+- **`CDL.context/1` and `CDL.scan/2`**: build the candle context once
+  and score many patterns (or all 61, with `scan/1`) against it —
+  ~3.9x faster than calling the patterns individually at 100k bars.
+  Pattern functions accept either bars or a prebuilt context.
+
 ## [0.10.0] - 2026-10-13
 
 The exact-parity release: every audited function — numeric series and

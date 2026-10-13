@@ -1,4 +1,5 @@
 defmodule TAlib.Indicators.Stochastic do
+  alias TAlib.Indicators.Window
   alias TAlib.Indicators.MA
 
   @moduledoc """
@@ -42,8 +43,17 @@ defmodule TAlib.Indicators.Stochastic do
 
   def stochastic_k(prices, period) when is_list(prices) and length(prices) < period, do: nil
 
-  def stochastic_k(prices, period) when is_list(prices),
-    do: prices |> Enum.take(-period) |> k_over_window()
+  def stochastic_k(prices, period) when is_list(prices) do
+    window = Enum.take(prices, -period)
+    lowest = Enum.min(window)
+    highest = Enum.max(window)
+
+    if highest == lowest do
+      nil
+    else
+      (List.last(window) - lowest) / (highest - lowest) * 100
+    end
+  end
 
   @doc """
   Calculate the full %K series.
@@ -73,7 +83,18 @@ defmodule TAlib.Indicators.Stochastic do
     do: List.duplicate(nil, length(prices))
 
   def stochastic_k_list(prices, period) when is_list(prices) do
-    k_values = prices |> Enum.chunk_every(period, 1, :discard) |> Enum.map(&k_over_window/1)
+    k_values =
+      prices
+      |> Window.maxes_mins(period)
+      |> Enum.zip(Enum.drop(prices, period - 1))
+      |> Enum.map(fn
+        {{highest, lowest}, close} when highest != lowest ->
+          (close - lowest) / (highest - lowest) * 100
+
+        _ ->
+          nil
+      end)
+
     List.duplicate(nil, period - 1) ++ k_values
   end
 
@@ -111,18 +132,6 @@ defmodule TAlib.Indicators.Stochastic do
       nil
     else
       MA.sma(k_values, d_period)
-    end
-  end
-
-  defp k_over_window(window) do
-    lowest_low = Enum.min(window)
-    highest_high = Enum.max(window)
-    range = highest_high - lowest_low
-
-    if range == 0 do
-      nil
-    else
-      (List.last(window) - lowest_low) / range * 100
     end
   end
 

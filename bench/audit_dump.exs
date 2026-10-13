@@ -17,7 +17,7 @@
 
 defmodule TAlib.AuditDump do
   @moduledoc false
-  alias TAlib.Indicators.{ATR, BBands, CDL, HT, MA, MACD, MAMA, OBV, RSI, StdDev}
+  alias TAlib.Indicators.{Aroon, ATR, BBands, CCI, CDL, HT, MA, MACD, MAMA, OBV, RSI, StdDev, StochRSI, Stochastic, WilliamsR}
 
   @lcg_a 1_103_515_245
   @lcg_c 12_345
@@ -70,6 +70,15 @@ defmodule TAlib.AuditDump do
         {"macd_line", macd_line},
         {"macd_signal", macd_signal},
         {"bbands_upper", Enum.map(bbands, &if(is_map(&1), do: &1.upper, else: nil))},
+        {"bbands_middle", Enum.map(bbands, &if(is_map(&1), do: &1.middle, else: nil))},
+        {"bbands_lower", Enum.map(bbands, &if(is_map(&1), do: &1.lower, else: nil))},
+        {"stoch_fastk", Stochastic.stochastic_k_list(prices, 14)},
+        {"williams_r", WilliamsR.williams_r_list(prices, 14)},
+        {"midpoint", MA.midpoint_list(prices, 20)},
+        {"stochrsi", StochRSI.stoch_rsi_list(prices, 14, 5)},
+        {"cci", CCI.cci_list(bars, 20)},
+        {"aroon_up", bars |> aroon_series(14) |> Enum.map(&if(is_nil(&1), do: nil, else: elem(&1, 0)))},
+        {"aroon_down", bars |> aroon_series(14) |> Enum.map(&if(is_nil(&1), do: nil, else: elem(&1, 1)))},
         {"stddev", StdDev.std_dev_list(prices, 20)},
         {"atr", ATR.atr_list(bars, 14)},
         {"obv", OBV.obv_list(bars)},
@@ -118,6 +127,10 @@ defmodule TAlib.AuditDump do
       {bar, x}
     end)
     |> elem(0)
+  end
+
+  defp aroon_series(bars, period) do
+    bars |> Enum.map(& &1.close) |> Aroon.aroon_list(period)
   end
 
   defp lcg(x), do: {rem(x * @lcg_a + @lcg_c, @lcg_m), x}

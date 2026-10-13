@@ -66,24 +66,32 @@ defmodule TAlib.Indicators.CMO do
   def cmo_list(prices, period) when is_list(prices), do: cmo_series(prices, period)
 
   defp cmo_series(prices, period) do
-    changes =
-      prices
-      |> Enum.chunk_every(2, 1, :discard)
-      |> Enum.map(fn [a, b] -> b - a end)
+    changes = changes(prices)
+    {window, rest} = Enum.split(changes, period)
 
-    windows = changes |> Enum.chunk_every(period, 1, :discard)
+    gains = Enum.sum(Enum.map(window, &max(&1, 0)))
+    losses = Enum.sum(Enum.map(window, &max(-&1, 0)))
 
-    values =
-      Enum.map(windows, fn window ->
-        gains = Enum.sum(Enum.map(window, &max(&1, 0)))
-        losses = Enum.sum(Enum.map(window, &max(-&1, 0)))
-
-        cond do
-          gains == 0 and losses == 0 -> nil
-          true -> 100 * (gains - losses) / (gains + losses)
-        end
+    {reversed, _, _, _} =
+      Enum.reduce(rest, {[cmo_value(gains, losses) | []], gains, losses, changes}, fn change,
+                                                                                      {acc, gains,
+                                                                                       losses,
+                                                                                       [
+                                                                                         leaving
+                                                                                         | older
+                                                                                       ]} ->
+        gains = gains - max(leaving, 0) + max(change, 0)
+        losses = losses - max(-leaving, 0) + max(-change, 0)
+        {[cmo_value(gains, losses) | acc], gains, losses, older}
       end)
 
-    List.duplicate(nil, period) ++ values
+    List.duplicate(nil, period) ++ Enum.reverse(reversed)
   end
+
+  defp changes([first | rest]), do: walk_changes(rest, first, [])
+  defp walk_changes([], _prev, acc), do: Enum.reverse(acc)
+  defp walk_changes([b | rest], a, acc), do: walk_changes(rest, b, [b - a | acc])
+
+  defp cmo_value(gains, losses) when gains == 0 and losses == 0, do: nil
+  defp cmo_value(gains, losses), do: 100 * (gains - losses) / (gains + losses)
 end

@@ -28,7 +28,24 @@ bars =
     }
   end)
 
-alias TAlib.Indicators.{MA, RSI, MACD, BBands, ATR, OBV, StdDev, CDL, HT, MAMA}
+alias TAlib.Indicators.{
+  Aroon,
+  ATR,
+  BBands,
+  CCI,
+  CDL,
+  Donchian,
+  HT,
+  MA,
+  MACD,
+  MAMA,
+  OBV,
+  RSI,
+  StdDev,
+  StochRSI,
+  Stochastic,
+  WilliamsR
+}
 
 jobs = [
   {"MA.sma_list/2 (20)", fn -> MA.sma_list(prices, 20) end},
@@ -36,12 +53,19 @@ jobs = [
   {"MA.wma_list/2 (20)", fn -> MA.wma_list(prices, 20) end},
   {"MA.dema_list/2 (20)", fn -> MA.dema_list(prices, 20) end},
   {"MA.kama_list/2 (20)", fn -> MA.kama_list(prices, 20) end},
+  {"MA.midpoint_list/2 (20)", fn -> MA.midpoint_list(prices, 20) end},
   {"RSI.rsi_list/2 (14)", fn -> RSI.rsi_list(prices, 14) end},
   {"MACD.macd_fix/4 (12/26/9)", fn -> MACD.macd_fix(prices, 12, 26, 9) end},
   {"BBands.bbands_list/3 (20,2)", fn -> BBands.bbands_list(prices, 20, 2) end},
   {"StdDev.std_dev_list/2 (20)", fn -> StdDev.std_dev_list(prices, 20) end},
   {"ATR.atr_list/2 (14) [bars]", fn -> ATR.atr_list(bars, 14) end},
   {"OBV.obv_list/1 [bars]", fn -> OBV.obv_list(bars) end},
+  {"Stochastic.slow/4 (14,3,3)", fn -> Stochastic.slow(prices, 14, 3, 3) end},
+  {"WilliamsR.williams_r_list/2 (14)", fn -> WilliamsR.williams_r_list(prices, 14) end},
+  {"Aroon.aroon_list/2 (14)", fn -> Aroon.aroon_list(prices, 14) end},
+  {"CCI.cci_list/2 (20) [bars]", fn -> CCI.cci_list(bars, 20) end},
+  {"Donchian.donchian_list/2 (20) [bars]", fn -> Donchian.donchian_list(bars, 20) end},
+  {"StochRSI.stoch_rsi_list/3 (14,5)", fn -> StochRSI.stoch_rsi_list(prices, 14, 5) end},
   {"CDL.doji/1", fn -> CDL.doji(bars) end},
   {"CDL.engulfing/1", fn -> CDL.engulfing(bars) end},
   {"CDL.three_white_soldiers/1", fn -> CDL.three_white_soldiers(bars) end},

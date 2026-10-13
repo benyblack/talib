@@ -1,4 +1,6 @@
 defmodule TAlib.Indicators.Aroon do
+  alias TAlib.Indicators.Window
+
   @moduledoc """
   Aroon indicator [Wikipedia](https://en.wikipedia.org/wiki/Aroon).
 
@@ -43,6 +45,17 @@ defmodule TAlib.Indicators.Aroon do
     }
   end
 
+  # Index of the maximal (or minimal) value in the window, earliest tie
+  # wins: only a strictly better value replaces the current extreme.
+  defp extreme_index(window, compare) do
+    window
+    |> Enum.with_index()
+    |> Enum.reduce(fn {value, index}, {best, best_index} ->
+      if compare.(value, best), do: {value, index}, else: {best, best_index}
+    end)
+    |> elem(1)
+  end
+
   @doc """
   The Aroon Up / Down series over closing prices, aligned with the input
   (`period` leading `nil`s).
@@ -62,9 +75,10 @@ defmodule TAlib.Indicators.Aroon do
   def aroon_list(prices, period) when is_list(prices) do
     values =
       prices
-      |> Enum.chunk_every(period + 1, 1, :discard)
-      |> Enum.map(fn window ->
-        {100 * extreme_index(window, &>/2) / period, 100 * extreme_index(window, &</2) / period}
+      |> Window.extremes(period + 1)
+      |> Enum.with_index(fn {max_idx, min_idx}, k ->
+        window_start = k
+        {100 * (max_idx - window_start) / period, 100 * (min_idx - window_start) / period}
       end)
 
     List.duplicate(nil, period) ++ values
@@ -87,16 +101,5 @@ defmodule TAlib.Indicators.Aroon do
   def aroon_osc(prices, period) when is_list(prices) do
     %{up: up, down: down} = aroon(prices, period)
     up - down
-  end
-
-  # Index of the maximal (or minimal) value in the window, earliest tie
-  # wins: only a strictly better value replaces the current extreme.
-  defp extreme_index(window, compare) do
-    window
-    |> Enum.with_index()
-    |> Enum.reduce(fn {value, index}, {best, best_index} ->
-      if compare.(value, best), do: {value, index}, else: {best, best_index}
-    end)
-    |> elem(1)
   end
 end
