@@ -16,7 +16,7 @@ defmodule TAlib.MixProject do
       package: package(),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      docs: [main: "TAlib", extras: ["README.md"]]
+      docs: [main: "TAlib", extras: ["README.md", "PARITY.md"]]
     ]
   end
 
