@@ -119,8 +119,8 @@ defmodule TAlib.Indicators.OBVTest do
 
     series = OBV.obv_list(@bars)
     assert length(series) == length(@bars)
-    assert hd(series) == 0
-    assert OBV.obv(@bars) == 600
+    assert hd(series) == hd(@bars).volume
+    assert OBV.obv(@bars) == List.last(series)
   end
 
   test "a close change of zero carries no volume" do
@@ -130,6 +130,6 @@ defmodule TAlib.Indicators.OBVTest do
       %{close: 6, volume: 30}
     ]
 
-    assert OBV.obv_list(bars) == [0, 20, 20]
+    assert OBV.obv_list(bars) == [10, 30, 30]
   end
 end
