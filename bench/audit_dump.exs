@@ -17,7 +17,7 @@
 
 defmodule TAlib.AuditDump do
   @moduledoc false
-  alias TAlib.Indicators.{Aroon, ATR, BBands, CCI, CDL, HT, MA, MACD, MAMA, OBV, RSI, StdDev, StochRSI, Stochastic, WilliamsR}
+  alias TAlib.Indicators.{Aroon, ATR, BBands, CCI, CDL, Donchian, HT, MA, MACD, MAMA, OBV, RSI, StdDev, StochRSI, Stochastic, WilliamsR}
 
   @lcg_a 1_103_515_245
   @lcg_c 12_345
@@ -93,7 +93,8 @@ defmodule TAlib.AuditDump do
         {"macdfix_macd_last", [macdfix.macd]},
         {"macdfix_signal_last", [macdfix.signal]},
         {"macdfix_histogram_last", [macdfix.histogram]}
-      ] ++ cdl_series(cdl_bars)
+      ] ++
+        streaming_series(prices, bars) ++ cdl_series(cdl_bars)
 
     content =
       Enum.map_join(series, "\n", fn {name, values} ->
@@ -101,6 +102,103 @@ defmodule TAlib.AuditDump do
       end) <> "\n"
 
     File.write!(Path.join(outdir, "talib_ours.txt"), content)
+  end
+
+  # The streaming rows: identical calls computed the `init` + `next`
+  # way — warm up on the first four fifths of the fixture, then one
+  # O(1) step per remaining bar — proving the streaming path emits
+  # exactly what the batch functions (and the C library) do.
+  defp streaming_series(prices, bars) do
+    closes = Enum.map(bars, & &1.close)
+
+    streamed_macd = fn ->
+      {state, values} = MACD.init(Enum.take(prices, div(length(prices), 5) * 4), 12, 26, 9)
+
+      {state, ext} =
+        Enum.reduce(Enum.drop(prices, div(length(prices), 5) * 4), {state, []}, fn price, {state, acc} ->
+          {state, value} = MACD.next(state, price)
+          {state, [value | acc]}
+        end)
+
+      %{
+        macd: values.macd ++ Enum.map(Enum.reverse(ext), & &1.macd),
+        signal: values.signal ++ Enum.map(Enum.reverse(ext), & &1.signal),
+        histogram: values.histogram ++ Enum.map(Enum.reverse(ext), & &1.histogram)
+      }
+    end
+
+    streamed_slow = fn ->
+      {state, values} = Stochastic.slow_init(Enum.take(prices, div(length(prices), 5) * 4), 14, 5, 3)
+
+      {state, ext} =
+        Enum.reduce(Enum.drop(prices, div(length(prices), 5) * 4), {state, []}, fn price, {state, acc} ->
+          {state, value} = Stochastic.slow_next(state, price)
+          {state, [value | acc]}
+        end)
+
+      %{
+        k: values.k ++ Enum.map(Enum.reverse(ext), & &1.k),
+        d: values.d ++ Enum.map(Enum.reverse(ext), & &1.d)
+      }
+    end
+
+    streamed_bbands = fn ->
+      band_streamed = streamed(prices, &BBands.init(&1, 20, 2), &BBands.next/2)
+
+      %{
+        upper: Enum.map(band_streamed, &if(is_map(&1), do: &1.upper, else: nil)),
+        middle: Enum.map(band_streamed, &if(is_map(&1), do: &1.middle, else: nil)),
+        lower: Enum.map(band_streamed, &if(is_map(&1), do: &1.lower, else: nil))
+      }
+    end
+
+    streamed_donchian = fn ->
+      streamed(bars, &Donchian.init(&1, 20), &Donchian.next/2)
+    end
+
+    macd = streamed_macd.()
+    slow = streamed_slow.()
+    bbands = streamed_bbands.()
+    donchian = streamed_donchian.()
+
+    [
+      {"stream_sma", streamed(prices, &MA.sma_init(&1, 20), &MA.sma_next/2)},
+      {"stream_ema", streamed(prices, &MA.ema_init(&1, 20), &MA.ema_next/2)},
+      {"stream_wma", streamed(prices, &MA.wma_init(&1, 20), &MA.wma_next/2)},
+      {"stream_rma", streamed(prices, &MA.rma_init(&1, 20), &MA.rma_next/2)},
+      {"stream_stddev", streamed(prices, &StdDev.init(&1, 20), &StdDev.next/2)},
+      {"stream_bbands_upper", bbands.upper},
+      {"stream_bbands_middle", bbands.middle},
+      {"stream_bbands_lower", bbands.lower},
+      {"stream_rsi", streamed(prices, &RSI.init(&1, 14), &RSI.next/2)},
+      {"stream_atr", streamed(bars, &ATR.init(&1, 14), &ATR.next/2)},
+      {"stream_macd", macd.macd},
+      {"stream_macd_signal", macd.signal},
+      {"stream_macd_histogram", macd.histogram},
+      {"stream_stoch_fastk", streamed(prices, &Stochastic.k_init(&1, 14), &Stochastic.k_next/2)},
+      {"stream_stoch_slowk", slow.k},
+      {"stream_stoch_slowd", slow.d},
+      {"stream_williams_r", streamed(prices, &WilliamsR.init(&1, 14), &WilliamsR.next/2)},
+      {"stream_aroon_up", streamed(closes, &Aroon.init(&1, 14), &Aroon.next/2) |> Enum.map(&if(is_nil(&1), do: nil, else: elem(&1, 0)))},
+      {"stream_aroon_down", streamed(closes, &Aroon.init(&1, 14), &Aroon.next/2) |> Enum.map(&if(is_nil(&1), do: nil, else: elem(&1, 1)))},
+      {"stream_donchian_upper", Enum.map(donchian, &if(is_map(&1), do: &1.upper, else: nil))},
+      {"stream_donchian_lower", Enum.map(donchian, &if(is_map(&1), do: &1.lower, else: nil))}
+    ]
+  end
+
+  # Warm up on the first four fifths of the fixture, stream the rest
+  # one bar at a time, and return the full streamed series.
+  defp streamed(values, init, next) do
+    {history, rest} = Enum.split(values, div(length(values), 5) * 4)
+    {state, streamed} = init.(history)
+
+    {state, ext} =
+      Enum.reduce(rest, {state, []}, fn value, {state, acc} ->
+        {state, out} = next.(state, value)
+        {state, [out | acc]}
+      end)
+
+    streamed ++ Enum.reverse(ext)
   end
 
   defp cdl_bars(size, seed) do
