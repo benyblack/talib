@@ -106,14 +106,52 @@ Honest reading:
   indicators interleaved with IO, timeouts and other traffic — which
   is what the BEAM is actually for.
 
+## Streaming: O(1) per tick
+
+Every batch function walks its whole input — the wrong shape for a
+live feed, where each tick would recompute 100k points to learn one
+number. The 0.13.0 streaming API (`MA.sma_init/2` + `MA.sma_next/2`
+and friends across 14 indicator families) carries only the rolling
+state, so a tick costs constant time (`bench/bench_stream.exs`, best
+of 5 folds of 10k ticks after a 100k-point warm-up, same host as the
+tables above):
+
+| Streaming `next` | Per tick | Batch recompute per tick | Ratio |
+| --- | ---: | ---: | ---: |
+| `MA.sma_next` (20) | 0.12 µs | 4.9 ms | 40,000x |
+| `MA.ema_next` (20) | 0.05 µs | — | — |
+| `MA.wma_next` (20) | 0.18 µs | — | — |
+| `MA.rma_next` (20) | 0.05 µs | — | — |
+| `StdDev.next` (20) | 0.29 µs | — | — |
+| `BBands.next` (20, 2) | 0.28 µs | 21.0 ms | 76,000x |
+| `RSI.next` (14) | 0.09 µs | 24.1 ms | 261,000x |
+| `ATR.next` (14) | 0.10 µs | 11.2 ms | 109,000x |
+| `MACD.next` (12/26/9) | 0.16 µs | 19.5 ms | 119,000x |
+| `Stochastic.k_next` (14) | 0.27 µs | — | — |
+| `Stochastic.slow_next` (14/5/3) | 0.56 µs | — | — |
+| `WilliamsR.next` (14) | 0.27 µs | — | — |
+| `Donchian.next` (20) | 0.28 µs | 64.9 ms | 235,000x |
+| `Aroon.next` (14) | 0.29 µs | 37.5 ms | 131,000x |
+
+The ratio column is what a per-tick recompute would pay: four to five
+orders of magnitude more than the state update. Warm-up (`init`) costs
+one batch pass — it replays the same sliding walk, threading the state
+alongside (20–82 ms at 100k in this run) — and because it replays the
+batch arithmetic operation for operation, the streamed series
+continues the batch series bit for bit: the test suite folds `next`
+over hundreds of bars and compares the result with `==`, and the value
+audit below runs every streaming family against the C library the same
+way (each `stream_*` row is warmed on the first 80% of the fixture,
+then stepped bar by bar).
+
 ## Numerical agreement with TA-Lib
 
 Beyond timing, the same Docker setup verifies values against the real
 C library (not just a transliteration): `bench/audit_dump.exs` dumps
 every function's output on shared fixtures (a smooth series plus
 pseudo-random OHLC bars), and a small numpy/talib script compares bar
-by bar. As of 0.12.0, verified across six fixtures (500-800 bars) and
-covering the windowed family too:
+by bar. As of 0.13.0, verified across eight fixtures (400-800 bars)
+and covering the windowed family and the streaming API too:
 
 - **Bit-exact (max rel err 0)**: SMA, EMA, DEMA, TEMA, T3, OBV, the
   MACD line and `macd_fix` (all three outputs), and `ht_trendline`.
@@ -126,6 +164,13 @@ covering the windowed family too:
 - **All 61 candlestick patterns are integer-exact** bar for bar,
   including hikkake's `±200` confirmation levels and the `±80`
   equal-touch levels of engulfing/harami.
+- **The streaming API (0.13.0) matches the C library with the same
+  figures as its batch twins**: every `stream_*` row is computed by
+  `init` on the first 80% of the fixture plus one `next` per remaining
+  bar — bit-exact for SMA, EMA, fast %K, slow %K/%D, Williams %R and
+  the Donchian channels, <= 1e-12 elsewhere (RMA has no standalone C
+  function; it is covered by the streaming-equals-batch tests, which
+  compare with `==` rather than a tolerance).
 
 The one remaining documented difference is alignment, not values: our
 `macd_list` defines the MACD line from bar `slow - 1` on (as soon as
@@ -137,6 +182,7 @@ both EMAs exist), while TA-Lib's MACD output begins at
 
 ```sh
 mix run bench/bench.exs 100000
+mix run bench/bench_stream.exs 100000
 mix run bench/audit_dump.exs /tmp 500 42
 ```
 

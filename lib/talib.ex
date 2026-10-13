@@ -18,6 +18,11 @@ defmodule TAlib do
     `ArgumentError`.
   * Functions return `nil` — never `0` — when there is not enough data,
     since `0` is a legitimate reading for several indicators.
+  * For live feeds, several modules also expose streaming state:
+    `init` warms up from history (one pass, returning the same series
+    as the batch function plus the opaque state) and `next` advances
+    one bar in O(1) — the streamed series continues the batch series
+    exactly.
   """
 
   @doc false
