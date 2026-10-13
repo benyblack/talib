@@ -26,7 +26,10 @@ cross-verified series for series.
   `MACD.macd_ext/macd_fix`, extended Parabolic SAR
 - Cycle indicators: the full Hilbert-transform family (`HT.ht_trendline`,
   `ht_dcperiod`, `ht_dcphase`, `ht_phasor`, `ht_sine`, `ht_trendmode`) and
-  `MAMA.mama` (with FAMA)
+  `MAMA.mama` (with FAMA) — value-matched against the real TA-Lib C library
+
+See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for a performance and
+numerical-agreement comparison against TA-Lib.
 
 Bar-based indicators take maps such as
 `%{open: o, high: h, low: l, close: c, volume: v}` with the keys they need —

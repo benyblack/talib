@@ -34,16 +34,17 @@ defmodule TAlib.Indicators.ATR do
       ...>   %{high: 13, low: 9, close: 12}
       ...> ]
       iex> TAlib.Indicators.ATR.atr(bars, 2)
-      3.5
+      3.0
   """
   @spec atr(list(map), pos_integer) :: float | nil
   def atr(bars, period \\ 14)
 
   def atr(_bars, period) when not is_valid_period(period), do: TAlib.invalid_period!(period)
 
-  def atr(bars, period) when is_list(bars) and length(bars) < period, do: nil
+  def atr(bars, period) when is_list(bars) and length(bars) < period + 1, do: nil
 
-  def atr(bars, period) when is_list(bars), do: List.last(MA.rma_list(true_ranges(bars), period))
+  def atr(bars, period) when is_list(bars),
+    do: List.last(MA.rma_list(tl(true_ranges(bars)), period))
 
   @doc """
   Calculate the full ATR series.
@@ -65,7 +66,7 @@ defmodule TAlib.Indicators.ATR do
       ...>   %{high: 13, low: 9, close: 12}
       ...> ]
       iex> TAlib.Indicators.ATR.atr_list(bars, 2)
-      [nil, 3.0, 3.5]
+      [nil, nil, 3.0]
   """
   @spec atr_list(list(map), pos_integer) :: list(float | nil)
   def atr_list(bars, period \\ 14)
@@ -73,8 +74,11 @@ defmodule TAlib.Indicators.ATR do
   def atr_list(_bars, period) when not is_valid_period(period),
     do: TAlib.invalid_period!(period)
 
+  # The seed uses the close-based TRs of bars 1..period, so the RMA runs
+  # over the True Ranges with the first (close-less) one dropped and the
+  # nil shifted back onto bar 0 — exactly the TA-Lib alignment.
   def atr_list(bars, period) when is_list(bars),
-    do: MA.rma_list(true_ranges(bars), period)
+    do: [nil | MA.rma_list(tl(true_ranges(bars)), period)]
 
   defp true_ranges([%{high: high, low: low, close: close} | rest]),
     do: true_range_walk(rest, close, [high - low])
@@ -112,7 +116,7 @@ defmodule TAlib.Indicators.ATR do
       ...>   %{high: 13, low: 9, close: 12}
       ...> ]
       iex> TAlib.Indicators.ATR.natr(bars, 2) |> Float.round(4)
-      29.1667
+      25.0
   """
   @spec natr(list(map), pos_integer) :: float | nil
   def natr(bars, period \\ 14)

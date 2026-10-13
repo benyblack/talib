@@ -122,7 +122,7 @@ defmodule TAlib.Indicators.KeltnerTest do
     assert Keltner.keltner(@bars, 200, 2) == nil
 
     channels = Keltner.keltner(@bars, 14, 2)
-    assert Float.round(channels.upper, 2) == 1329.99
+    assert Float.round(channels.upper, 2) == 1330.0
     assert Float.round(channels.middle, 2) == 1304.53
     assert Float.round(channels.lower, 2) == 1279.06
   end
@@ -130,7 +130,7 @@ defmodule TAlib.Indicators.KeltnerTest do
   test "keltner_list/3 aligns with the input" do
     series = Keltner.keltner_list(@bars, 14, 2)
     assert length(series) == length(@bars)
-    assert Enum.count(series, &is_nil/1) == 13
+    assert Enum.count(series, &is_nil/1) == 14
     assert Enum.all?(series, fn entry -> is_nil(entry) or is_map(entry) end)
   end
 

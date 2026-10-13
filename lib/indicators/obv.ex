@@ -3,8 +3,8 @@ defmodule TAlib.Indicators.OBV do
   On-Balance Volume [Wikipedia](https://en.wikipedia.org/wiki/On-balance_volume).
 
   A running total of volume, added when the close rises and subtracted
-  when it falls: `OBV_0 = 0` and `OBV_t = OBV_{t-1} ± volume_t` by the
-  direction of the close. The series is defined from the very first bar.
+  when it falls. Matching TA-Lib, the line is seeded with the first
+  bar's volume; the first bar itself carries no change.
 
   Bars are maps with at least `:close` and `:volume`. See `TAlib` for the
   remaining conventions: chronological order, oldest first, series
@@ -27,7 +27,7 @@ defmodule TAlib.Indicators.OBV do
       ...>   %{close: 7, volume: 40}
       ...> ]
       iex> TAlib.Indicators.OBV.obv(bars)
-      30
+      40
   """
   @spec obv(list(map)) :: number | nil
   def obv([]), do: nil
@@ -37,7 +37,8 @@ defmodule TAlib.Indicators.OBV do
   @doc """
   Calculate the full On-Balance Volume series.
 
-  Returns a list aligned with `bars` (the first entry is always `0`).
+  Returns a list aligned with `bars` (the first entry is the first
+  bar's volume, as in TA-Lib).
 
   ## Parameters
 
@@ -52,13 +53,13 @@ defmodule TAlib.Indicators.OBV do
       ...>   %{close: 7, volume: 40}
       ...> ]
       iex> TAlib.Indicators.OBV.obv_list(bars)
-      [0, 20, -10, 30]
+      [10, 30, 0, 40]
   """
   @spec obv_list(list(map)) :: list(number)
   def obv_list([]), do: []
 
-  def obv_list([%{close: close} | rest]) do
-    obv_walk(rest, close, 0, [0])
+  def obv_list([%{close: close, volume: volume} | rest]) do
+    obv_walk(rest, close, volume, [volume])
   end
 
   defp obv_walk([], _prev_close, _total, acc), do: Enum.reverse(acc)

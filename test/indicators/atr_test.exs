@@ -121,13 +121,13 @@ defmodule TAlib.Indicators.ATRTest do
 
   test "atr/2" do
     assert ATR.atr(@bars, 200) == nil
-    assert Float.round(ATR.atr(@bars, 14), 4) == 12.7318
+    assert Float.round(ATR.atr(@bars, 14), 4) == 12.7337
   end
 
   test "atr_list/2 aligns with the input" do
     series = ATR.atr_list(@bars, 14)
     assert length(series) == length(@bars)
-    assert Enum.count(series, &is_nil/1) == 13
+    assert Enum.count(series, &is_nil/1) == 14
     assert ATR.atr(@bars, 14) == List.last(series)
   end
 
@@ -142,6 +142,6 @@ defmodule TAlib.Indicators.ATRTest do
     assert hd(trs) == hd(@bars).high - hd(@bars).low
 
     assert ATR.natr(@bars, 200) == nil
-    assert Float.round(ATR.natr(@bars, 14), 4) == 0.9566
+    assert Float.round(ATR.natr(@bars, 14), 4) == 0.9567
   end
 end

@@ -5,6 +5,38 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-10-13
+
+### Added
+
+- `bench/bench.exs`: a dependency-free benchmark harness
+  (`mix run bench/bench.exs [size]`), plus `docs/BENCHMARKS.md` with a
+  TAlib-vs-TA-Lib(C) comparison table at 100k points (same-machine,
+  same-VM Docker runs) and the numerical-agreement audit below.
+
+### Fixed
+
+- **CDL was quadratic**: the per-bar candle context re-sliced the
+  bodies list from a growing offset (9.2 s per pattern on 100k bars).
+  Both the average-body and the windowing are now single-pass — a
+  ~400x speedup with identical scores.
+- **`OBV` now seeds the line with the first bar's volume** and
+  **`ATR` seeds on the close-based True Ranges of bars `1..period`**,
+  emitting from bar `period` — both now match actual TA-Lib output
+  exactly (OBV: 0.0 absolute difference; ATR: 4e-16 relative).
+- `HT.ht_dcperiod`, `HT.ht_phasor` and `MAMA`/`FAMA` now use TA-Lib's
+  12-bar warmup and emit from bar 32 (the 63-lookback family keeps
+  37/63), verified against the real C library to 1e-13.
+
+### Notes
+
+- Value-level audit against the real TA-Lib C library (not a
+  transliteration): SMA/EMA/WMA/RSI/BBands/StdDev/OBV/ATR and the full
+  Hilbert/MESA family match within 1e-13; `MACD.macd/3` and `dema/2`
+  differ in early values due to TA-Lib's unstable-period EMA seeding
+  (documented in `docs/BENCHMARKS.md`); 39 of 61 candlestick patterns
+  are bit-exact on the reference fixture.
+
 ## [0.9.0] - 2026-10-13
 
 ### Added

@@ -35,7 +35,7 @@ defmodule TAlib.Indicators.Keltner do
       ...> ]
       iex> %{upper: u, middle: m, lower: l} = TAlib.Indicators.Keltner.keltner(bars, 2, 2)
       iex> {Float.round(u, 4), Float.round(m, 4), Float.round(l, 4)}
-      {18.3333, 11.3333, 4.3333}
+      {17.3333, 11.3333, 5.3333}
   """
   @spec keltner(list(map), pos_integer, number) ::
           %{
@@ -82,7 +82,7 @@ defmodule TAlib.Indicators.Keltner do
       ...>   %{high: 13, low: 9, close: 12}
       ...> ]
       iex> TAlib.Indicators.Keltner.keltner_list(bars, 2) |> Enum.count(&is_nil/1)
-      1
+      2
   """
   @spec keltner_list(list(map), pos_integer, number) :: list(map | nil)
   def keltner_list(bars, period \\ 20, mult \\ 2)

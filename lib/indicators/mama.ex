@@ -9,9 +9,10 @@ defmodule TAlib.Indicators.MAMA do
   `slow_limit` as the phase rate rises. `fama` is MAMA itself averaged
   again with half the alpha.
 
-  Like the `TAlib.Indicators.HT` family, the first 63 entries are `nil`
-  and TA-Lib's configurable unstable-period machinery is not mirrored.
-  See `TAlib` for the conventions.
+  Like `TAlib.Indicators.HT` (the 32-lookback family: `ht_dcperiod`,
+  `ht_phasor`), the first 32 entries are `nil`; TA-Lib's configurable
+  unstable-period machinery is not mirrored. See `TAlib` for the
+  conventions.
   """
 
   @doc """
@@ -27,7 +28,7 @@ defmodule TAlib.Indicators.MAMA do
 
       iex> values = TAlib.Indicators.MAMA.mama(Enum.to_list(1..100))
       iex> Float.round(List.last(values.mama), 4)
-      98.1515
+      95.7327
   """
   @spec mama(list(number), number, number) :: %{mama: list(float | nil), fama: list(float | nil)}
   def mama(prices, fast_limit \\ 0.5, slow_limit \\ 0.05)
@@ -52,10 +53,10 @@ defmodule TAlib.Indicators.MAMA do
   def mama(prices, fast_limit, slow_limit) when is_list(prices) do
     alias TAlib.Indicators.HT
 
-    {_tuple, stream} = HT.core_stream(prices)
+    {_tuple, stream} = HT.core_stream(prices, 12)
 
     {values, _acc} =
-      HT.scan(stream, %{prev_phase: 0.0, mama: 0.0, fama: 0.0}, fn bar, acc ->
+      HT.scan(stream, %{prev_phase: 0.0, mama: 0.0, fama: 0.0}, 32, fn bar, acc ->
         {alpha, prev_phase} = adaptive_alpha(bar, acc.prev_phase, fast_limit, slow_limit)
 
         mama = (1 - alpha) * acc.mama + alpha * bar.price
@@ -66,7 +67,7 @@ defmodule TAlib.Indicators.MAMA do
       end)
 
     values
-    |> HT.align()
+    |> HT.align(12)
     |> then(&unzip(&1, :mama, :fama))
   end
 
