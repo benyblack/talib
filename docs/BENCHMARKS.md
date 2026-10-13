@@ -49,6 +49,7 @@ column to watch is the order of magnitude.
 (`Donchian.donchian_list` (20) runs at 53.1 ms; TA-Lib has no Donchian
 function to compare against.)
 
+Takeaways:
 
 - The single-pass series functions (SMA/EMA/WMA/OBV/StdDev/ATR/RSI)
   land at 25-100x the C library — the cost of immutable-list walking
@@ -78,7 +79,7 @@ Beyond timing, the same Docker setup verifies values against the real
 C library (not just a transliteration): `bench/audit_dump.exs` dumps
 every function's output on shared fixtures (a smooth series plus
 pseudo-random OHLC bars), and a small numpy/talib script compares bar
-by bar. As of 0.11.0, verified on five fixtures (500-800 bars) and
+by bar. As of 0.12.0, verified across six fixtures (500-800 bars) and
 covering the windowed family too:
 
 - **Bit-exact (max rel err 0)**: SMA, EMA, DEMA, TEMA, T3, OBV, the
