@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-10-13
+
+### Added
+
+- **`TAlib.Indicators.HT`** — the full Hilbert-transform cycle family,
+  translated from the TA-Lib C reference implementation of Ehlers' MESA
+  machinery: `ht_trendline`, `ht_dcperiod`, `ht_dcphase`, `ht_phasor`
+  (in-phase/quadrature), `ht_sine` (sine/lead-sine) and `ht_trendmode`.
+- **`TAlib.Indicators.MAMA`** — the MESA Adaptive Moving Average with
+  FAMA and TA-Lib-compatible fast/slow limit validation.
+
+### Notes
+
+- **133 of 133 TA-Lib functions covered — full parity.** Every HT/MAMA
+  series was cross-verified against a transliteration of the same C
+  source on trend and mixed-price fixtures (bit-for-bit identical
+  output). The family warms up over a fixed 63-bar preamble and nils
+  those entries; TA-Lib's configurable unstable-period handling is not
+  mirrored (documented in `PARITY.md`).
+
 ## [0.8.0] - 2026-10-12
 
 ### Added
