@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A Reflections section to the README: the parity journey, the
+  value-audit methodology, and the honest performance/concurrency
+  story.
 - `bench/bench_panel.exs` and `bench/bench_panel.py`: the
   many-symbol concurrency panel (8 indicators over N series,
   sequential vs concurrent on both runtimes), with results in
